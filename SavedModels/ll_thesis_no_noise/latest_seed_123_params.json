@@ -1,14 +1,14 @@
 {
   "mode": "ll_thesis",
   "n_ll": 100,
-  "n_mon": 800,
-  "n_ts": 80,
+  "n_mon": 3200,
+  "n_ts": 300,
   "speed_cm_s": 5.0,
-  "distance_cm": 1.5,
+  "distance_cm": 0.8,
   "direction": 1.0,
   "training_noise_scale_early": 0.0,
   "training_noise_scale_late": 0.0,
-  "mon_ts_apre": 0.006,
-  "mon_ts_apost": -0.0063,
-  "mon_ts_wmax": 0.02
+  "mon_ts_apre": 0.008,
+  "mon_ts_apost": -0.0084,
+  "mon_ts_wmax": 0.028
 }

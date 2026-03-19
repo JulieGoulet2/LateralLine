@@ -46,9 +46,6 @@ class NetworkParams:
     # Restrict training to near-field distances where LL SNR is acceptable.
     training_distance_min_cm: float = 0.8
     training_distance_max_cm: float = 1.8
-    # Restrict training positions along the lateral line (cm). Defaults cover full 0..L.
-    training_x_min_cm: float = 0.0
-    training_x_max_cm: float = 4.0
 
     # -----------------------------
     # Stimulus setup
@@ -143,9 +140,6 @@ class NetworkParams:
     bg_w_mon_mV: float = 1.5
     bg_w_ts_mV: float = 0.60
 
-    # Debug: silence edge TS neurons (index 0 and n_ts-1).
-    silence_ts_edges: bool = False
-
 
 def apply_model_mode(params: NetworkParams, mode: str) -> NetworkParams:
     """
@@ -168,10 +162,10 @@ def apply_model_mode(params: NetworkParams, mode: str) -> NetworkParams:
             n_training_trials=1000,
             trial_duration_s=1.2,
             checkpoint_trials=5,
-            # Thesis-consistent MON->TS STDP table values.
-            mon_ts_apre=0.02,
-            mon_ts_apost=-0.021,
-            mon_ts_wmax=0.045,
+            # Gentler MON->TS STDP so map does not collapse to edge attractors.
+            mon_ts_apre=0.008,
+            mon_ts_apost=-0.0084,
+            mon_ts_wmax=0.028,
             mon_ts_w_init=0.020,
             mon_ts_w_jitter=0.005,
             # Slightly lower feedforward drive to keep TS sparse.
@@ -188,13 +182,13 @@ def apply_model_mode(params: NetworkParams, mode: str) -> NetworkParams:
             global_inh_to_mon_mV=1.15,
             ts_lateral_radius=18,
             ts_local_inh_peak_mV=1.4,
-            use_ts_feedback_inh=False,
-            ts_to_global_inh_p=0.12,
-            ts_to_global_inh_drive_mV=0.35,
-            global_inh_to_ts_mV=0.8,
+            use_ts_feedback_inh=True,
+            ts_to_global_inh_p=0.08,
+            ts_to_global_inh_drive_mV=0.25,
+            global_inh_to_ts_mV=0.35,
             bg_rate_mon_hz=22.0,
-            bg_rate_ts_hz=4.0,
-            bg_w_ts_mV=0.60,
+            bg_rate_ts_hz=10.0,
+            bg_w_ts_mV=0.75,
             # Start with no training noise to verify map mechanism.
             training_noise_scale_early=0.0,
             training_noise_scale_late=0.0,
@@ -203,12 +197,9 @@ def apply_model_mode(params: NetworkParams, mode: str) -> NetworkParams:
             training_fixed_distance=False,
             training_distance_min_cm=0.8,
             training_distance_max_cm=1.8,
-            # Train across the full 4 cm lateral line by default.
-            training_x_min_cm=0.0,
-            training_x_max_cm=4.0,
             # Thesis-consistent stimulus speed.
             speed_cm_s=5.0,
-            test_path_cm=4.0,
+            test_path_cm=5.0,
         )
 
     if mode == "ll_fast":
@@ -262,8 +253,7 @@ def build_mon_to_ts_indices(
             else:
                 center = mon_pos[mon_idx] * (n_ts - 1)
                 topo_targets = np.rint(rng.normal(center, sigma_ts, size=n_topo)).astype(int)
-                # Toroidal wrap: avoid edge truncation bias from clipping.
-                topo_targets = np.mod(topo_targets, n_ts)
+                topo_targets = np.clip(topo_targets, 0, n_ts - 1)
             parts.append(topo_targets)
 
         # Random part.
@@ -312,8 +302,7 @@ def build_ll_to_mon_indices(
             else:
                 center = mon_pos[mon_idx] * (n_ll - 1)
                 topo_sources = np.rint(rng.normal(center, sigma_ll, size=n_topo)).astype(int)
-                # Toroidal wrap along the lateral-line sensor axis.
-                topo_sources = np.mod(topo_sources, n_ll)
+                topo_sources = np.clip(topo_sources, 0, n_ll - 1)
             parts.append(topo_sources)
 
         if n_rand > 0:
@@ -404,12 +393,8 @@ def make_training_rates(params: NetworkParams):
     x_trace_cm = np.zeros(n_steps, dtype=float)
     samples = []
 
-    # Balanced x sampling across a selectable subrange of the lateral line.
-    x_lo = float(np.clip(params.training_x_min_cm, 0.0, stim_params.lateral_line_length_cm))
-    x_hi = float(np.clip(params.training_x_max_cm, 0.0, stim_params.lateral_line_length_cm))
-    if x_hi <= x_lo:
-        raise ValueError(f"Invalid training x-range: [{x_lo}, {x_hi}]")
-    x_bins = np.linspace(x_lo, x_hi, params.n_ll)
+    # Balanced x sampling across the full 4 cm lateral line.
+    x_bins = np.linspace(0.0, stim_params.lateral_line_length_cm, params.n_ll)
     x_seq = []
     if params.training_ordered_sweeps:
         # Deterministic forward/backward sweeps reduce ambiguity and improve map learning.
@@ -460,13 +445,15 @@ def make_training_rates(params: NetworkParams):
 def make_test_rates(params: NetworkParams):
     """Continuous moving-sphere test sweep.
 
-    For the lateral line (0..4 cm), shift the sphere center so it starts at
-    0.5 cm and ends at 4.5 cm while the lateral line remains 0..4 cm.
+    For the lateral line (0..4 cm), we sometimes want the sphere center to
+    traverse a longer path (e.g. -0.5..4.5 cm) so the endpoints are not
+    over-emphasized by geometry.
     """
     test_duration_s = params.test_path_cm / max(params.speed_cm_s, 1e-9)
-    # With test_path_cm=4.0 and speed=5.0, direction=+1 gives x(t)=0.5..4.5.
+    # Place the sphere center so that a 5 cm path covers [-0.5, 4.5] when direction=+1.
+    # For any path length, we start at x = -0.5 and move forward; LL neuromasts still span 0..4 cm.
     stim_params = StimulusParams()
-    x0_cm = 0.5 if params.direction >= 0 else (stim_params.lateral_line_length_cm + 0.5)
+    x0_cm = -0.5 if params.direction >= 0 else (stim_params.lateral_line_length_cm + 0.5)
     sim = simulate_lateral_line(
         duration_s=test_duration_s,
         dt_s=params.dt_s,
@@ -532,11 +519,8 @@ def pv_map_quality_from_ts_spikes(
     if np.any(valid):
         np.add.at(rates, (k[valid], ts_spike_i[valid]), 1.0 / dt_s)
 
-    # Temporal smoothing improves PV robustness when activity is sparse.
-    # Use a slightly longer window so PV has enough TS spikes per bin
-    # to be defined (theta_hat not NaN) during the short test trajectory.
-    smooth_win_s = 0.05  # 50 ms
-    smooth_win = max(1, int(round(smooth_win_s / max(dt_s, 1e-9))))
+    # Temporal smoothing improves PV robustness when activity is sparse in single ms bins.
+    smooth_win = max(1, int(round(0.02 / max(dt_s, 1e-9))))  # ~20 ms
     if smooth_win > 1:
         kernel = np.ones(smooth_win, dtype=float) / float(smooth_win)
         rates = np.apply_along_axis(lambda v: np.convolve(v, kernel, mode="same"), 0, rates)
@@ -555,17 +539,12 @@ def pv_map_quality_from_ts_spikes(
     theta_hat[~nz] = np.nan
 
     # True position mapped to angle.
-    # If the test stimulus x is outside [0, lateral_line_len_cm], the model uses
-    # a clipped angle. For PV evaluation we ignore those bins to avoid
-    # artificially dominating sigma/valid_fraction by edge clipping.
-    in_range = (test_x_cm >= 0.0) & (test_x_cm <= lateral_line_len_cm)
     x_clip = np.clip(test_x_cm, 0.0, lateral_line_len_cm)
     theta_true = 2.0 * np.pi * x_clip / lateral_line_len_cm
-    theta_true[~in_range] = np.nan
 
     # Estimation error.
     delta = np.full(n_t, np.nan, dtype=float)
-    m = np.isfinite(theta_hat) & np.isfinite(theta_true)
+    m = np.isfinite(theta_hat)
     delta[m] = _wrap_to_pi(theta_hat[m] - theta_true[m])
 
     # Position-dependent bias and trial variability.
@@ -752,10 +731,6 @@ def run_spatial_two_stage_model(params: NetworkParams):
         topography_strength=params.mon_to_ts_topography_strength,
         seed=params.seed,
     )
-    if bool(params.silence_ts_edges) and params.n_ts >= 2:
-        keep = (ts_j != 0) & (ts_j != (params.n_ts - 1))
-        mon_i = mon_i[keep]
-        ts_j = ts_j[keep]
 
     s_mon_ts = b2.Synapses(
         mon,
@@ -791,13 +766,8 @@ def run_spatial_two_stage_model(params: NetworkParams):
     bg_ts = b2.PoissonGroup(params.n_ts, rates=params.bg_rate_ts_hz * b2.Hz)
     s_bg_mon = b2.Synapses(bg_mon, mon, on_pre=f"ge_post += {params.bg_w_mon_mV}*mV")
     s_bg_mon.connect(condition="i == j")
-    # TS background synapses as identity with per-synapse weight so we can silence edges.
-    s_bg_ts = b2.Synapses(bg_ts, ts, model="w : volt", on_pre="ge_post += w")
+    s_bg_ts = b2.Synapses(bg_ts, ts, on_pre=f"ge_post += {params.bg_w_ts_mV}*mV")
     s_bg_ts.connect(condition="i == j")
-    s_bg_ts.w = float(max(0.0, params.bg_w_ts_mV)) * b2.mV
-    # If silence_ts_edges is enabled, we silence only MON->TS inputs to edges
-    # (handled above by filtering MON->TS targets). We keep TS background drive
-    # so edges can still spike and compete if needed.
 
     # MON global inhibition.
     s_mon_to_inh = b2.Synapses(mon, mon_inh, on_pre=f"ge_post += {params.mon_to_global_inh_drive_mV}*mV")
@@ -1231,137 +1201,6 @@ def save_ts_tuning_figure(result, out_path: Path, n_examples: int = 16):
     plt.close(fig)
 
 
-def save_mon_to_ts_weight_profile(result: dict, out_path: Path):
-    """
-    Diagnostic: average MON->TS synaptic weight as a function of TS index (after learning).
-    Helps check whether learning collapses onto TS edge neurons.
-    """
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-
-    p = result.get("params", None)
-    if p is None:
-        return
-
-    w = np.asarray(result.get("w_after", []), dtype=float)
-    j = np.asarray(result.get("mon_to_ts_j", []), dtype=int)
-    if w.size == 0 or j.size == 0:
-        return
-
-    n_ts = int(p.n_ts)
-    avg_w = np.zeros(n_ts, dtype=float)
-    sat_frac = np.zeros(n_ts, dtype=float)
-    cnt = np.zeros(n_ts, dtype=int)
-
-    for ts_idx in range(n_ts):
-        m = j == ts_idx
-        if not np.any(m):
-            avg_w[ts_idx] = 0.0
-            sat_frac[ts_idx] = 0.0
-            continue
-        cnt[ts_idx] = int(np.sum(m))
-        avg_w[ts_idx] = float(np.mean(w[m]))
-        sat_frac[ts_idx] = float(np.mean(np.isclose(w[m], float(p.mon_ts_wmax))))
-
-    fig, ax = plt.subplots(1, 1, figsize=(10, 4.2))
-    ax.plot(np.arange(n_ts), avg_w, lw=2.0, color="tab:blue")
-    ax.set_xlabel("TS index")
-    ax.set_ylabel("average MON->TS weight (dimensionless)")
-    ax.set_title("MON->TS weight profile vs TS index (after learning)")
-    ax.grid(alpha=0.3)
-
-    ax2 = ax.twinx()
-    ax2.plot(np.arange(n_ts), sat_frac, lw=1.5, color="tab:red", alpha=0.7)
-    ax2.set_ylabel("fraction at wmax")
-
-    fig.tight_layout()
-    fig.savefig(out_path, dpi=180)
-    plt.close(fig)
-
-
-def save_ts_spikes_vs_x_test_figure(result: dict, out_path: Path):
-    """
-    Diagnostic scatter: TS index vs stimulus position x during the test window.
-    If a torus map exists, points should form a diagonal band (not vertical stacks).
-    """
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-
-    p = result["params"]
-    sp_ts = result["sp_ts"]
-    test_sim = result["test_sim"]
-
-    train_duration_s = float(result["train_duration_s"])
-    test_duration_s = float(result["test_duration_s"])
-    x_test = np.asarray(test_sim["X_cm"], dtype=float)
-
-    t_test_end = train_duration_s + test_duration_s
-    ts_t_abs = np.asarray(sp_ts.t / b2.second, dtype=float)
-    ts_i = np.asarray(sp_ts.i, dtype=int)
-
-    m = (ts_t_abs >= train_duration_s) & (ts_t_abs < t_test_end)
-    if not np.any(m):
-        return
-
-    ts_t = ts_t_abs[m] - train_duration_s
-    ts_i = ts_i[m]
-
-    dt = float(p.dt_s)
-    k = np.floor(ts_t / dt).astype(int)
-    valid = (k >= 0) & (k < x_test.size)
-    if not np.any(valid):
-        return
-
-    x_sp = x_test[k[valid]]
-    ts_i = ts_i[valid]
-
-    # Focus on the lateral line range used for PV evaluation.
-    in_range = (x_sp >= 0.0) & (x_sp <= float(StimulusParams().lateral_line_length_cm))
-    if not np.any(in_range):
-        return
-
-    x_sp = x_sp[in_range]
-    ts_i = ts_i[in_range]
-
-    fig, ax = plt.subplots(1, 1, figsize=(8, 4.2))
-    ax.scatter(x_sp, ts_i, s=2.0, alpha=0.4, color="tab:green")
-    ax.set_xlabel("stimulus position x (cm) during test (in [0,4])")
-    ax.set_ylabel("TS index")
-    ax.set_title("TS spikes vs x during test window")
-    ax.grid(alpha=0.25)
-    fig.tight_layout()
-    fig.savefig(out_path, dpi=180)
-    plt.close(fig)
-
-
-def save_pv_theta_scatter_test_figure(result: dict, out_path: Path):
-    """
-    Diagnostic: theta_hat vs theta_true during the test window (PV decode).
-    If a map exists, points cluster around the diagonal (mod 2pi).
-    """
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-
-    theta_true = np.asarray(result.get("pv_theta_true", []), dtype=float)
-    theta_hat = np.asarray(result.get("pv_theta_hat", []), dtype=float)
-    if theta_true.size == 0 or theta_hat.size == 0:
-        return
-
-    m = np.isfinite(theta_true) & np.isfinite(theta_hat)
-    if not np.any(m):
-        return
-
-    fig, ax = plt.subplots(1, 1, figsize=(5.5, 5.5))
-    ax.scatter(theta_true[m], theta_hat[m], s=2.0, alpha=0.35, color="tab:blue")
-    ax.plot([0, 2 * np.pi], [0, 2 * np.pi], color="tab:orange", lw=2.0, alpha=0.8)
-    ax.set_xlim(0, 2 * np.pi)
-    ax.set_ylim(0, 2 * np.pi)
-    ax.set_xlabel("theta_true (rad)")
-    ax.set_ylabel("theta_hat (rad)")
-    ax.set_title("PV decode during test: theta_hat vs theta_true")
-    ax.grid(alpha=0.25)
-    fig.tight_layout()
-    fig.savefig(out_path, dpi=180)
-    plt.close(fig)
-
-
 def save_multiseed_summary(results: list[dict], out_path: Path):
     """Save PV map-quality summary across seeds."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1527,18 +1366,6 @@ def main():
         help="Override maximum training distance (cm) for snapshot sampling.",
     )
     parser.add_argument(
-        "--training-x-min-cm",
-        type=float,
-        default=None,
-        help="Override minimum training x position along lateral line (cm).",
-    )
-    parser.add_argument(
-        "--training-x-max-cm",
-        type=float,
-        default=None,
-        help="Override maximum training x position along lateral line (cm).",
-    )
-    parser.add_argument(
         "--ll-mon-topo",
         type=float,
         default=None,
@@ -1652,52 +1479,16 @@ def main():
         help="Override MON global inhibition strength onto MON (mV).",
     )
     parser.add_argument(
-        "--mon-to-global-inh-p",
-        type=float,
-        default=None,
-        help="Override MON->global-inhibitory connection probability (0..1).",
-    )
-    parser.add_argument(
-        "--mon-to-global-inh-drive-mv",
-        type=float,
-        default=None,
-        help="Override MON->global-inhibitory drive strength (mV).",
-    )
-    parser.add_argument(
         "--mon-ts-gain-mv",
         type=float,
         default=None,
         help="Override MON->TS EPSP gain (mV per unit weight).",
     )
     parser.add_argument(
-        "--mon-ts-wmax",
-        type=float,
-        default=None,
-        help="Override MON->TS maximal STDP weight (dimensionless).",
-    )
-    parser.add_argument(
-        "--mon-ts-apre",
-        type=float,
-        default=None,
-        help="Override MON->TS Apre (pre-synaptic STDP increment).",
-    )
-    parser.add_argument(
-        "--mon-ts-apost",
-        type=float,
-        default=None,
-        help="Override MON->TS Apost (post-synaptic STDP increment).",
-    )
-    parser.add_argument(
         "--bg-rate-mon-hz",
         type=float,
         default=None,
         help="Override MON background Poisson drive rate (Hz).",
-    )
-    parser.add_argument(
-        "--bg-w-mon-mv",
-        type=float,
-        default=None,
-        help="Override MON background synaptic weight (mV).",
     )
     parser.add_argument(
         "--bg-rate-ts-hz",
@@ -1711,11 +1502,6 @@ def main():
         default=None,
         help="Override TS background synaptic weight (mV).",
     )
-    parser.add_argument(
-        "--silence-ts-edges",
-        action="store_true",
-        help="Debug: silence TS edge neurons (0 and n_ts-1) by removing MON->TS and TS background drive.",
-    )
     args = parser.parse_args()
 
     params = apply_model_mode(NetworkParams(), args.mode)
@@ -1728,10 +1514,6 @@ def main():
         override["training_distance_min_cm"] = float(max(0.0, args.training_distance_min_cm))
     if args.training_distance_max_cm is not None:
         override["training_distance_max_cm"] = float(max(0.0, args.training_distance_max_cm))
-    if args.training_x_min_cm is not None:
-        override["training_x_min_cm"] = float(args.training_x_min_cm)
-    if args.training_x_max_cm is not None:
-        override["training_x_max_cm"] = float(args.training_x_max_cm)
     if args.ll_mon_topo is not None:
         override["ll_to_mon_topography_strength"] = float(max(0.0, args.ll_mon_topo))
     if args.mon_ts_topo is not None:
@@ -1752,22 +1534,12 @@ def main():
         override["ts_local_inh_peak_mV"] = float(max(0.0, args.ts_local_inh_peak_mv))
     if args.mon_ts_gain_mv is not None:
         override["mon_ts_gain_mV"] = float(max(0.0, args.mon_ts_gain_mv))
-    if args.mon_ts_wmax is not None:
-        override["mon_ts_wmax"] = float(max(0.0, args.mon_ts_wmax))
-    if args.mon_ts_apre is not None:
-        override["mon_ts_apre"] = float(args.mon_ts_apre)
-    if args.mon_ts_apost is not None:
-        override["mon_ts_apost"] = float(args.mon_ts_apost)
     if args.bg_rate_mon_hz is not None:
         override["bg_rate_mon_hz"] = float(max(0.0, args.bg_rate_mon_hz))
-    if args.bg_w_mon_mv is not None:
-        override["bg_w_mon_mV"] = float(max(0.0, args.bg_w_mon_mv))
     if args.bg_rate_ts_hz is not None:
         override["bg_rate_ts_hz"] = float(max(0.0, args.bg_rate_ts_hz))
     if args.bg_w_ts_mv is not None:
         override["bg_w_ts_mV"] = float(max(0.0, args.bg_w_ts_mv))
-    if bool(args.silence_ts_edges):
-        override["silence_ts_edges"] = True
     if bool(args.use_ll_mon_stdp):
         override["ll_mon_use_stdp"] = True
     if args.ll_mon_apre is not None:
@@ -1788,10 +1560,6 @@ def main():
         override["ts_to_global_inh_p"] = float(np.clip(args.ts_feedback_p, 0.0, 1.0))
     if args.mon_global_inh_mv is not None:
         override["global_inh_to_mon_mV"] = float(max(0.0, args.mon_global_inh_mv))
-    if args.mon_to_global_inh_p is not None:
-        override["mon_to_global_inh_p"] = float(np.clip(args.mon_to_global_inh_p, 0.0, 1.0))
-    if args.mon_to_global_inh_drive_mv is not None:
-        override["mon_to_global_inh_drive_mV"] = float(max(0.0, args.mon_to_global_inh_drive_mv))
     params = replace(params, **override)
 
     results = []
@@ -1817,18 +1585,6 @@ def main():
             f"brian2_ts_tuning_u_{p_run.speed_cm_s:.1f}_nMON_{p_run.n_mon}_nTS_{p_run.n_ts}_seed_{p_run.seed}.png"
         )
         save_ts_tuning_figure(r, ts_tuning_out)
-        mon_ts_profile_out = Path("Picture") / (
-            f"brian2_mon_ts_weight_profile_u_{p_run.speed_cm_s:.1f}_nMON_{p_run.n_mon}_nTS_{p_run.n_ts}_seed_{p_run.seed}.png"
-        )
-        save_mon_to_ts_weight_profile(r, mon_ts_profile_out)
-        ts_spike_x_out = Path("Picture") / (
-            f"brian2_ts_spikes_vs_x_test_u_{p_run.speed_cm_s:.1f}_nMON_{p_run.n_mon}_nTS_{p_run.n_ts}_seed_{p_run.seed}.png"
-        )
-        save_ts_spikes_vs_x_test_figure(r, ts_spike_x_out)
-        pv_scatter_out = Path("Picture") / (
-            f"brian2_pv_theta_scatter_u_{p_run.speed_cm_s:.1f}_nMON_{p_run.n_mon}_nTS_{p_run.n_ts}_seed_{p_run.seed}.png"
-        )
-        save_pv_theta_scatter_test_figure(r, pv_scatter_out)
         artifacts_dir = Path(args.save_weights_dir)
         weights_path, params_path = save_learning_artifacts(r, artifacts_dir, f"{args.save_tag}_seed_{p_run.seed}")
         print(f"Seed {p_run.seed} saved figure: {output}")
@@ -1848,18 +1604,6 @@ def main():
         f"brian2_ts_tuning_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
     )
     save_ts_tuning_figure(result, ts_tuning_out)
-    mon_ts_profile_out = Path("Picture") / (
-        f"brian2_mon_ts_weight_profile_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
-    )
-    save_mon_to_ts_weight_profile(result, mon_ts_profile_out)
-    ts_spike_x_out = Path("Picture") / (
-        f"brian2_ts_spikes_vs_x_test_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
-    )
-    save_ts_spikes_vs_x_test_figure(result, ts_spike_x_out)
-    pv_scatter_out = Path("Picture") / (
-        f"brian2_pv_theta_scatter_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
-    )
-    save_pv_theta_scatter_test_figure(result, pv_scatter_out)
     if args.mode == "ll_thesis":
         latest_plot = Path("Picture") / "LL_THESIS_BASELINE_ACTIVE_latest.png"
         latest_plot.parent.mkdir(parents=True, exist_ok=True)
@@ -1888,10 +1632,10 @@ def main():
         print(f"Saved latest copy: {Path('Picture') / 'LL_THESIS_BASELINE_ACTIVE_latest.png'}")
     if n_runs == 1:
         print(f"Spikes: LL={result['sp_ll'].num_spikes}, MON={result['sp_mon'].num_spikes}, TS={result['sp_ts'].num_spikes}")
-        ts_t = np.asarray(result["sp_ts"].t / b2.second, dtype=float)
+        ts_t_abs = np.asarray(result["sp_ts"].t / b2.second, dtype=float)
         t0 = float(result["train_duration_s"])
         t1 = float(result["train_duration_s"] + result["test_duration_s"])
-        n_ts_test = int(np.sum((ts_t >= t0) & (ts_t < t1)))
+        n_ts_test = int(np.sum((ts_t_abs >= t0) & (ts_t_abs < t1)))
         print(f"TS spikes during test window: {n_ts_test}")
         n_mon_ts = len(result["mon_to_ts_i"])
         tot_s = result["total_duration_s"]
@@ -1899,15 +1643,6 @@ def main():
         print(f"MON->TS synapses: {n_mon_ts}, MON rate per neuron: {mon_rate_per_neuron:.4f} Hz")
         ts_rate = result["pr_ts"].smooth_rate(width=20 * b2.ms) / b2.Hz
         print(f"Max TS population rate (20 ms smooth): {float(np.max(ts_rate)):.2f} Hz")
-        # If requested, print whether TS edge neurons received any MON->TS synapses.
-        if bool(result["params"].silence_ts_edges) and result["params"].n_ts >= 2:
-            j = np.asarray(result.get("mon_to_ts_j", []), dtype=int)
-            w = np.asarray(result.get("w_after", []), dtype=float)
-            n0 = int(np.sum(j == 0))
-            nL = int(np.sum(j == (result["params"].n_ts - 1)))
-            mean0 = float(np.mean(w[j == 0])) if n0 > 0 else 0.0
-            meanL = float(np.mean(w[j == (result["params"].n_ts - 1)])) if nL > 0 else 0.0
-            print(f"MON->TS into TS0 synapses={n0}, mean w(TS0)={mean0:.4g}; into TSlast synapses={nL}, mean w(TSlast)={meanL:.4g}")
         print(
             "Weight change: "
             f"mean|dw|={result['w_mean_abs_delta_final']:.6f}, "
