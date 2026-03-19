@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Pictures and archives
+Picture/
+*.zip
+*.png
+*.jpg
+*.jpeg
+*.pdf
+
+# Saved models / outputs
+SavedModels/
