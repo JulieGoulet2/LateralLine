@@ -4,6 +4,7 @@
 # Python
 __pycache__/
 *.py[cod]
+__pycache__/
 
 # Pictures and archives
 Picture/
