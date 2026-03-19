@@ -1,0 +1,3 @@
+phase,noise_scale,distance_cm,pv_sigma_theta,pv_delta_trial,pv_valid_fraction
+before,0.0000,0.8000,1.56519412,0.01770738,0.75750000
+after,0.0000,0.8000,0.70437961,0.01603215,0.15250000

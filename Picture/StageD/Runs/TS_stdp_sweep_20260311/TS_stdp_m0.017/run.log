@@ -1,0 +1,38 @@
+Matplotlib created a temporary cache directory at /var/folders/tj/65nw54qj3mqgrwsx5hbg31q40000gn/T/matplotlib-459503xq because the default path (/Users/juliegoulet/.matplotlib) is not a writable directory; it is highly recommended to set the MPLCONFIGDIR environment variable to a writable directory, in particular to speed up the import of Matplotlib and to better support multiprocessing.
+
+Fontconfig error: No writable cache directories
+	/usr/local/var/cache/fontconfig
+	/Users/juliegoulet/.cache/fontconfig
+	/Users/juliegoulet/.fontconfig
+2026-03-11 08:13:43.289 python3[30347:809454] Failure on line 687 in function id scheduleApplicationNotification(LSNotificationCode, NSWorkspaceNotificationCenter *): noErr == _LSModifyNotification(notificationID, 1, &code, 0, NULL, NULL, NULL)
+WARNING    /Users/juliegoulet/Documents/LateralLine2026/Code/LateralLine/stage_d_torus_map.py:808: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+ [py.warnings]
+WARNING    /Users/juliegoulet/Documents/LateralLine2026/Code/LateralLine/stage_d_torus_map.py:865: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+ [py.warnings]
+Saved: Picture/StageD/Runs/TS_stdp_sweep_20260311/TS_stdp_m0.017/stageD_torus_metrics_TS_stdp_m0.017.csv
+Saved: Picture/StageD/Runs/TS_stdp_sweep_20260311/TS_stdp_m0.017/stageD_torus_map_no_noise_after_TS_stdp_m0.017.png
+Saved: Picture/StageD/Runs/TS_stdp_sweep_20260311/TS_stdp_m0.017/stageD_torus_map_no_noise_before_TS_stdp_m0.017.png
+Saved: Picture/StageD/Runs/TS_stdp_sweep_20260311/TS_stdp_m0.017/stageD_torus_map_noise_levels_after_TS_stdp_m0.017.png
+Saved: Picture/StageD/Runs/TS_stdp_sweep_20260311/TS_stdp_m0.017/stageD_torus_map_noise_levels_before_TS_stdp_m0.017.png
+Saved: Picture/StageD/Runs/TS_stdp_sweep_20260311/TS_stdp_m0.017/stageD_weight_stabilization_TS_stdp_m0.017.png
+Saved: Picture/StageD/Runs/TS_stdp_sweep_20260311/TS_stdp_m0.017/stageD_weight_stabilization_TS_stdp_m0.017.csv
+Saved: Picture/StageD/Runs/TS_stdp_sweep_20260311/TS_stdp_m0.017/stageD_before_after_compare_noise_0.00_TS_stdp_m0.017.png
+Saved: Picture/StageD/Runs/TS_stdp_sweep_20260311/TS_stdp_m0.017/stageD_before_after_time_noise_0.00_TS_stdp_m0.017.png
+Saved: Picture/StageD/Runs/TS_stdp_sweep_20260311/TS_stdp_m0.017/stageD_dynamic_time_activity_TS_stdp_m0.017.png
+MON max population rate (20 ms smooth): 29.90 Hz
+TS max population rate (20 ms smooth): 11.08 Hz
+Estimated weight stabilization time: 30.00 s
+Weight summary: mean_w_init=0.024746, mean_w_final=0.026397, mean_dmeanw_dt=2.177957e-05
+Condition metrics:
+after: noise=0.00, Y=0.80 cm -> sigma=1.2810, valid=1.000
+after: noise=0.00, Y=1.20 cm -> sigma=1.5471, valid=1.000
+after: noise=0.00, Y=1.60 cm -> sigma=1.5523, valid=0.968
+before: noise=0.00, Y=0.80 cm -> sigma=2.0462, valid=0.772
+before: noise=0.00, Y=1.20 cm -> sigma=1.2843, valid=1.000
+before: noise=0.00, Y=1.60 cm -> sigma=1.5529, valid=0.990
+Dynamic x-hat tracking (afferent vs torus):
+before: corr(x_hat_ll, x_hat_ts)=0.2081
+after: corr(x_hat_ll, x_hat_ts)=-0.1893
+Saved: Picture/StageD/Runs/TS_stdp_sweep_20260311/TS_stdp_m0.017/RUN_SUMMARY_TS_stdp_m0.017.md

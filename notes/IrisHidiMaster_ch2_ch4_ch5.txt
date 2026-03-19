@@ -1,0 +1,1202 @@
+Chapter 2
+
+2.1
+
+The Lateral Line System
+
+The main motivation for the work is the anatomy of the lateral-line (LL) system of
+fishes and the assumption of a similarity between the way the LL and the pit organ
+in snakes process information.
+Simply put, the LL is a sensory system found in aquatic vertebrates such as adult
+fish, larval amphibians, and some adult amphibians used to detect movement, vibration, and pressure gradients in the surrounding water[5]. The system provides fish
+with spatial perception without using vision and the ability to better navigate in
+their environment, helping them to survive in the challenging environment of oceans,
+seas, and rivers. In other words, through the lateral line fish feel their aquatic world.
+It appears as a faint line of pores throughout the length of the body of fishes and
+tadpoles and passes through the vicinity of the gill covers till the base of the tail as
+seen in Figure 2.1 (A) [5].
+The building blocks of LL are specialized sensory cells called neuromasts and can
+be distributed across almost the entire fish body. They consist of up to several
+thousand neuromasts distributed over the entire surface of the fish body. To better
+understand the functional significance of the LL it is essential to know the physical
+properties of the system itself, the anatomical organisation and most important the
+neurophysiological principles. The most outstanding characteristic of the LL is the
+separation into a population of superficial neuromasts and a population of canal
+neuromasts.
+• Superficial neuromasts (SN): Placed directly on the surface of the skin,
+where they are arranged in lines or clusters on the head, trunk and tail fin.
+They play the role of velocity detectors with the result that neuronal responses
+are proportional to the velocity of the water flowing around the cupula [6].
+3
+
+• Canal neuromasts (CN): Placed in canals on the fish heads and trunk and
+the fluid inside the canals contacts the water surrounding the fish through a
+series of canal pores. Their main function is to detect pressure gradient and
+respond to pressure differences between neighbouring canal pores. Outside the
+canal, the pressure gradient is proportional to the acceleration of the water.
+Thus, CNs may also be regarded as acceleration detectors of water motions
+outside the canal.
+
+Figure 2.1: Lateral line system of a fish. (A) Bodily location of lateral lines. (B)
+Longitudinal section of a canal. (C) Superficial neuromast [13].
+The neuromasts consists of a macula comprising sensory hair cells, supporting cells
+and mantle cells. The ciliary bundles of the hair cells are embedded in a gelatinous
+dome-like structure, the cupula as seen in Figure 2.1 (C). The hair cellls, have a
+protruding bundle of short stereocilia arranged in astair-case design and a single
+kinocilium adjacent to the tallest stereocilium as seen in Figure 2.2. The stereocilia
+and kinocilium form synaptic connections with the nervous tissue at the base and
+project into a potassium ion rich endolymph. The stereocilia are connected together
+by filamentous tip links joining the tip of a lower stereocilia to the side of the
+adjacent higher one. These connection points are locations of ion channels that
+allows potassium ions of enter the endolymph [13].
+When a fish encounters flow relative to it’s surface the surrounding cupula encounters a drag force proportional to the flow velocity and thus deflects in one direction.
+4
+
+Figure 2.2: Depolarization of hair cell due to
+flow-coupled deflection of
+stereocilia [6]
+.
+
+Figure 2.3: Superficial and Canal Neuromasts of
+the Lateral Line [13].
+
+This stimulus displaces the stereocilia towards the kinocilium and elongates the tip
+link. It opens the gate of the ion channel and admitts potassium ions that depolarises the cell. When stereocilia are displaced in the opposite sense, the tension
+in the tip link is reduced and the mechanical ion gate is shut, repolarising the cell.
+In other words, water movements cause deflections of the cupula resulting in the
+shearing of the ciliary bundles, which leads to a change in the hair cells membrane
+potential [6].
+The anatomy of the LL system varies greatly across different species. For example,
+SNs can appear on the skin or recessed in pits with various number and size among
+species. The number and structure of LL canals is also highly variable [6]. Different
+morphologies of the sensory system provide different filter properties. In other
+words, morphology determines the range of stimuli to which a sensory system is
+most sensitive. The number and placement of SNs as well as number and placement
+of canal pores may affect the nature of hydrodynamic information that is received
+by the lateral-line system. These variables strongly determine how information from
+the water surrounding is transferred to the lateral-line system.
+The information from the peripheral LL enters the medulla throuth at least three
+pairs of nerves. These are the dorsal and ventral anterior LL nerves (ALLN) which
+carry information of neuromasts situated on the head. On the other hand the
+posterior LL nerves (PLLN) carry the information of neuromasts situated on the
+trunk. Developmental studies on the zebrafish (Danio rerio) and tracing studies in
+5
+
+goldfish carassius auratus show that the afferents project to the medulla in a crude
+somatotopic manner. The position of the neuromasts along the antero posterior axis
+(from head to tail) of the fish is represented in the central projection of the afferents
+[12].
+
+2.1.1
+
+Lateral-Line Map
+
+The information about the central physiology of hydrodynamic stimuli in fishes
+is limited. Most of the data come from the anatomy and physiology of trout or
+goldfish. For this reason a minimal model is needed, in order to better understand
+some general principles of information processing in the LL system of fishes.
+The brain of vertebrates is composed of two symmetric hemispheres. Two main
+structures, that can be distinguished are the rhobencephalon (hindbrain) and the
+prosencephalon. The later one is devided in two substructures, which are the diencephalon (middle brain) and the telencephalon (forebrain). The rhobencephalon
+is devided in three substrates. This are the myencephalon the metencephalon and
+the mesencephalon. LL information is processed at all levels of the brain from the
+metencephalon up to telencephalon.
+The roots of the LL nerves enter the ipsilateral brainstem and go through the ascending and descending branches. These terminate in the medial octavolateralis nucleus
+(MON). The mechanoreceptors of the LL system project by mean of at least three
+different nerves in the medial octavolateralis nucleus (MON) in the metencephalon.
+Some afferents also terminate in the Eminentia Granularis posterior. The cell of the
+MON will project bi-directionally to the lateral portion of the torus semicircularis
+and also bi-directionally into the deep layer of the tectum opticum. LL information
+will also be processed from the torus and the tectum opticum to higher brain areas
+[12].
+For fish, the cells in the MON answer only to the LL stimulus. In the torus semicircularis some cells may also respond to an auditory stimulus. In the optic tectum,
+the cells are multimodal responding to visual, mechanosensory, auditory and visual stimuli. The projection between torus and optic tectum are topographically
+matched. This means that the LL map in the torus and the multi-modal map in
+the optic tectum should have an organization compatible with each other [13].
+
+6
+
+Figure 2.4: Schematic view of the projection of the LL in the brain of
+teleostean (Picture redrawn from a sketch of Jacob Engelmann). The tectum opticum (top layer) is the first station where all modalities are integrated. The
+first and in fish the only center of multimodal integation, where our considerations
+stop.
+
+7
+
+The neuronal network for the processing of input stimulus in the fish brain consists,
+as mentioned earlier, of two layers:
+• MON with nM ON and
+• TS with nT S neurons, respectively.
+The structure presented in Figure 2.5 is used for a better performance of both an
+expansion and a distillation of the input stimulus. Different combinations of neurons
+were tried, but different network structures did not give better results.
+
+Figure 2.5: Model of network architecture. Primarily, 100 neuromasts are
+connected randomly and sparsly with 3200 neurons in MON. Global inhibition in
+the layer provides gain control, enhancing the dynamic range of the sparse activity.
+MON projects again randomly and weakly somatotopically onto the map in TS.
+Finally. lateral inhibition in TS forms a somatotopic map [11].
+
+8
+
+2.1.2
+
+Hydrodynamic Stimulus
+
+In the first draft of the work a hydrodynamic stimulus was implemented, where the
+lateral line system was represented as a one-dimentional arrangement of superficial
+neuromasts. Boundary conditions were neglected.
+
+Figure 2.6: Schematic representation of the hydrodynamic stimulus at the lateral
+line organ.
+The input consists of a moving sphere S and radius r moving parallel to the fish
+body at distance D and speed U , which are drawn from independent Gaussian
+distributions.
+
+U ∼ N R (µU , σU )
+
+D ∼ N R (µD , σD )
+
+and
+
+(2.1)
+
+We defined (δX, δY ) as the instantaneous direction of motion of the stimulus in
+Cartesian coordinates and the velocity potential as:
+
+φ(X, Y, xi , yi ) =
+
+U R3 (xi − X)δX + (yi − Y )δY
+q
+3 .
+2
+(x − X)2 + (y − Y )2
+i
+
+(2.2)
+
+i
+
+For our case, the velocity parallel to the axis of maximum sensitivity for the cupula
+is [11]
+
+9
+
+vφi =
+
+dφ
+∂φ dxi
+∂φ dyi
+∂φ
+∂φ
+=
++
+=
+δxi +
+δyi
+dθi
+∂xi dθi ∂yi dθi
+∂xi
+∂yi
+
+(2.3)
+
+where
+∂φ
+U R3 [2(xi − X)2 − (yi − Y )2 ]δX + 3(xi − X)(yi − Y )δY
+=−
+q
+5
+dθi
+2
+(x − X)2 + (y − Y )2
+
+(2.4)
+
+U R3 3(xi − X)(yi − Y )δX − [(xi − X)2 − 2(yi − Y )2 ]δY
+∂φ
+=−
+q
+5
+dθi
+2
+(x − X)2 + (y − Y )2
+
+(2.5)
+
+i
+
+i
+
+i
+
+i
+
+It is assumed that the activity rate of the ith SN afferent in head-to-tail direction
+takes the form [11]:
+riLL (X, Y ) = [r0LL + A · vθ (xi , yi , X, Y )]200Hz
++
+
+(2.6)
+
+where r0LL is the instantaneous firing rare and A is a fitted conversion factor. The
+LL
+= 200Hz
+rectification of the firing rates are between 0 and rmax
+
+[r]200Hz
+=
++
+
+
+
+r
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+if 0 ≤ r ≤ 200Hz
+
+0
+
+if r < 0
+
+200Hz
+
+ifr > 200Hz
+
+Different stimuli, water waves and the motion of the fish body itself generate correlated noise in space and time. For this reason an additive Gaussian noise δrill with
+standard deviation σnoise is being added to the previous firing rate. Combining the
+last one with a correlation length Lnoise and a correlation time τnoise this effect can
+be modeled as [11]:
+d LL
+1
+δr (t) = −
+δrLL (t) +
+dt
+τnoise
+
+s
+
+2σnoise
+ξ(t)
+τnoise
+
+(2.7)
+
+ξ(t) is a vector-valued correlation white-noise process with:
+
+hξ(t)i = 0
+
+hξ(t)ξ T (s)i = Rδ(s − t).
+
+and
+10
+
+(2.8)
+
+The nLL × nLL -matrix R describes the spatial correlation between neuromasts [11].
+1 xi−xj
+Ri,j = exp −
+2 Lnoise
+
+
+
+
+2 
+
+(2.9)
+
+Using the hydrodynamic noise, the final expression for the afferent firing rate can
+be derived [11].
+h
+
+riLL (X, Y ) = r0LL + A · vθ (xi , yi , X, Y ) + δrill
+
+i200Hz
++
+
+The parameters mentioned are being listed in the following Table:
+
+Description
+Sphere radius
+Length of lateral line
+Average
+distance
+perpendicular to fish
+Standard deviation
+Average
+stimulus
+speed parallel to fish
+Standard deviation
+Conversion
+factor
+velocity to LL rate
+Instantaneous firing
+rate
+Maximum firing rate
+Standard deviation
+of noise
+Time constant of
+noise correlation
+Correlation length of
+noise
+Fish body long axis
+Short axis
+
+Parameter
+r
+L
+µD
+
+Value
+0.5 cm
+4.0 cm
+1.5 cm
+
+σD
+µU
+
+0.6 cm
+5.0 cm/s
+
+σU
+A
+
+1cm/s
+30000m−
+
+r0LL
+
+40 Hz
+
+LL
+rmax
+σnoise
+
+200 Hz
+10 Hz
+
+τnoise
+
+0.1 s
+
+Lnoise
+
+1.0cm
+
+af ish
+bf ish
+
+2 cm
+0.3 cm
+
+Table 2.1: TABLE I: Default stimulus parameters.
+
+11
+
+(2.10)
+
+12
+
+Chapter 4
+
+4.1
+
+Computational model
+
+4.1.1
+
+Simulation Tools
+
+Simulating biological neuronal networks is a core method of research in computational neuroscience. A full specification of such a network model includes a description of the dynamics and state changes of neurons and synapses, as well as the
+synaptic connectivity patterns and the initial values of all parameters.
+A standard approach in neuronal modeling software is to build network models
+based on a library of pre-defined components and mechanisms. The two simulator
+tools listed below, propose an alternative approach that allows flexible definition of
+models by writing textual descriptions based on mathematical notation.
+NEST (Neural Simulation Tool)
+NEST is a simulation software for spiking neural network models initially developed
+by Markus Diesmann and Marc-Oliver Gewaltig and now developed and maintained
+by the NEST Initiative. Mostly used in modeling of information processing, network activity dynamics and development of models of learning and plasticity, NEST
+focuses on the dynamics, size and structure of neural systems rather than on the
+exact morphology of individual neurons [21].
+At first NEST was used to program the individual elements of the project, starting
+with the integrate-and-fire neurons and afterwards continuing with the connection
+between a small number of test neurons. Working on the STDP-synapse, problems
+started not only to slow the progress of the project but also made it impossible to
+continue the work with this specific tool. The main issues that we encountered were:
+23
+
+• With the existing version of the program it was not possible to give a maximum
+and a minimum value for a specific weight function.
+• With the version of NEST available at the time, it was not possible to connect
+a Spike generator device, in case of a stdp synapse, to a layer of neurons
+arranged with periodic boundary conditions i.e a circle of neurons.
+Considering this two main issues that occurred during the research phase and after
+contacting the developers of NEST it was decided to jump to another simulation
+tool.
+Brian2 Simulator tool
+Brian is a clock driven simulator for spiking neural networks, written in the Python
+programming language. It has a powerful, easy to understand syntax that can define,
+run and plot neural models in just a few lines of code. Users specify neuron models by
+giving their differential equations in standard mathematical form as strings, create
+groups of neurons and connect them via synapses. In contrast to the approach taken
+by many neural simulators here users select from a predefined set of neuron models
+[8]. The main goal of the developers was to create a tool that helps scientist to save
+time. It is easy to learn and also easy to use, highly flexible and easily extensible
+[22].
+Right after starting working with Brian problems were solved and the project continued without other technical obstacles in the way.
+
+24
+
+4.1.2
+
+Leaky integrate-and-fire neuron
+
+A Leaky integrate-and-fire neuron model is being used as a simplified abstract view
+of our complex reality. Being one of the most widely used models for analyzing the
+behavior of neural systems, it is capable of being analyzed mathematically while at
+the same time being sufficiently complex to capture many of the essential features
+of neural processing.
+Leaky integrate-and-fire (LIF) model can be traced back to Louis Lapicque (1907)
+long before we understood the electrophysiology of a neuron. It represents the
+neuron as a parallel combination of a leaky resistor and a capacitor.
+
+Figure 4.1: The LIF model is a model of a biological neuron used in computational
+neuroscience. A neuron is represented by an RC circuit and a threshold. An input
+spike modeled as a short current pulse leads to a jump in the membrane voltage
+which decays afterwards exponentially. If the threshold is reached an output spike
+is emitted and the voltage is reset.
+
+The subthreshold membrane potential dynamics of a LIF neuron is described by
+[26]:
+Cm
+
+dV
+= −gL (V − EL ) + I
+dt
+
+25
+
+(4.1)
+
+where Cm is the membrane capacitance, V is the membrane potential, gL is the leak
+conductance (the reverse of the leak resistance R), EL is the resting potential, and
+I is the external input current. Dividing both sides of the above equation by gL
+gives [26]:
+I
+dV
+= −(V − EL ) +
+(4.2)
+τm
+dt
+gL
+where τm is the membrane time constant and is defined as:
+τm = Cm /gL
+
+(4.3)
+
+If I is sufficiently strong such that V reaches a certain threshold value Vth , the
+membrane potential is reset to a reset potential Vreset < Vth . The Voltage is clamped
+to Vreset for tauref ms, mimicking the refractoriness of the neuron during action
+potential. If:
+V (tsp ) ≥ Vth : V (t) = Vreset f ort ∈ (tsp , tsp + τref ]
+
+(4.4)
+
+where tsp is the spike time when V(t) just exceedes Vth [26].
+This model takes into consideration the fact that a neuron performs a spatial and
+also a temporal integration of the synaptic input. It generates a spike when the
+voltage reaches a certain threshold and goes in refractory during the action potential.
+The LIF model assumes that the spatial and temporal integration of inputs is linear.
+Also, membrane potential dynamics close to the spike threshold are much slower in
+LIF neurons than in real neurons.
+The biggest disadvantage of the Leaky integrate-and-fire neuron is that it does not
+contain neuronal adaptation so that it cannot describe an experimentally measured
+spike train in response to constant input current. This disadvantage is removed in
+generalized integrate-and-fire models that also contain one or several adaptationvariables and are able to predict spike times of cortical neurons under current injection to a high degree of accuracy.
+In Brian the LIF model starts by defining a simple neuron model by systems of
+differential equations. Each equation is a string with usually one line per equation
+formatted with standard mathematical notations and the addition of SI unit of a
+specific variable.
+The parameters used in the LIF nueron model are listed in Table 4.1.
+
+26
+
+Description
+Spike threshold
+
+Parameter
+Vth
+
+Value
+-54mV
+
+Reset potential
+
+Vreset
+
+-60mV
+
+Resting potential
+
+El
+
+-74mV
+
+Refractory period
+
+τref
+
+2ms
+
+Membrane time constant
+
+τm
+
+10ms
+
+Synaptic time constant
+
+τs
+
+2ms
+
+Table 4.1: TABLE II: Parameters of the LIF neuron model.
+
+4.1.3
+
+Spike-timing dependent plasticity
+
+Spike Timing Dependent Plasticity (STDP) is a temporally asymmetric form of
+Hebbian learning induced by tight temporal correlations between the spikes of preand postsynaptic neurons. Synapses in this work follow this exacty modell, meaning
+that a connection between two neurons will grow if the post-synaptic neuron fires
+soon after the pre-synaptic neuron. On the opposite, a connection will decrease if
+the post-synaptic neuron fires before the pre-synaptic neuron [9]. STDP has been
+documented at dozens of synapses, in a variety of brain areas and experimental
+conditions, both in vitro and in vivo. It is known as a rule for neurons to strengthen
+or weaken their connection according to the degree of synchronization of the firing.
+The weight change ∆wj of a synapse from a presynaptic neuron i depends on the
+relative timing between presynaptic spike arrivals and postsynaptic spikes of the
+postsynaptic neurons j. The presynaptic spike arrival times tki , where k = 1, 2, 3.... ,
+counts the presynaptic spikes. Similarly, tlj with l = 1, 2, 3, ... labels the firing times
+of the postsynaptic neuron. The total weight change ∆wj , which is also known as
+the synaptic strength, is induced with pairs of pre- and postsynaptic spikes.
+
+∆wj =
+
+N
+X N
+X
+
+W (tlj − tki )
+
+(4.5)
+
+k=1 l=1
+
+The function W (x) defines the order of decrease or increase of strength. It depends
+on the synchrony of spiking between pre- and post-synaptic neurons, expressed as:
+
+27
+
+
+A+ exp(− x )
+
+W (x) = 
+
+τ+
+x
+A− exp( τ− )
+
+if x > 0
+otherwise.
+
+(4.6)
+
+A+ and A− are constants defining the amplitude of change in weight at t = 0+ and
+t = 0− , respectively. τ+ and τ− are time constants of the exponential decrease in
+weight change.
+Figure 4.2 represents equation (4.6) of relative weight changes in relation with the
+experiments realized by Bi and Poo in [10]. This figure shows typically a decrease in
+synaptic weight when the pre-synaptic neuron spikes after the post-synaptic neuron,
+and on the opposite an increase in connectivity from pre- to post-synaptic neuron
+if the pre-synaptic neuron spikes just before the post-synaptic neuron [9].
+
+Figure 4.2: Spike-Timing Dependent Plasticity (schematic): The STDP function
+shows the change of synaptic connections as a function of the relative timing of preand postsynaptic spikes after 60 spike pairings. Schematically redrawn after Bi and
+Poo [10]
+
+28
+
+Simulating it directly using this equation though would be very inefficient, because
+we would have to sum over all pairs of spikes. That would also be physiologically
+unrealistic because the neuron cannot remember all its previous spike times. It
+turns out there is a more efficient and physiologically more plausible way to get the
+same effect.
+In Brian two new variables a+ and a− are defined. These are the traces of pre- and
+post-synaptic activity, governed by the differential equations:
+τ+
+
+d
+a+ = −a+
+dt
+
+(4.7)
+
+τ−
+
+d
+a− = −a−
+dt
+
+(4.8)
+
+When a presynaptic spike occurs, the presynaptic trace is updated and the weight
+is modified according to the rule:
+a+ → a+ + A+
+
+(4.9)
+
+w → w + A−
+
+(4.10)
+
+a− → a− + A−
+
+(4.11)
+
+w → w + A+
+
+(4.12)
+
+When a postsynaptic spike occurs:
+
+To see that this formulation is equivalent, you just have to check that the equations
+sum linearly, and consider two cases: what happens if the presynaptic spike occurs
+before the postsynaptic spike, and vice versa.
+Now that we have a formulation that relies only on differential equations and spike
+events, we can turn that into Brian code. For biological reasons, it is desirable to
+keep the synaptic weights in a range wmin < wj < wmax . For the sake of simplicity,
+the lower bound is set in most models to zero, wmin =0, so that the weights can’t
+get too large or negative.
+In the vast majority of synaptic plasticity models, changes in synaptic efficacy are
+implemented as a change in synaptic gain, ∆wj , which in effect corresponds to a
+postsynaptic locus of expression of synaptic plasticity.
+
+29
+
+Figure 4.3: Implementating spike-timing-dependent plasticity with Brian
+The source code shows a complete implementation of a simple network shown on
+the right.
+In Figure 4.3 a typical and basical implementation of the stdp-synapse in Brian is
+shown. Firstly, when defining the synapses a more complicated multi-line string
+definition of three synaptic variables is given (w, apre and apost). Although these
+variables evolve continuously over time, Brian should only update them at the time
+of an event (a spike). The values of apre and apost are not used except at spike
+times, and it is more efficient to only update them when needed. In the end the
+synaptic weight are being aplied to the target neurons.
+Creating a synapses instance does not create synapses, it only specifies their dynamics. Multiple synaptic connections can be created in a single statement (stdp.connect())
+and through string expressions a spatial connectivity can be achieved. A StateMonitor object is used to monitor the synaptic variables.
+Both excitatory and inhibitory stdp-synapses are being used. Cortical neurons receive balanced excitatory and inhibitory synaptic currents. Adjustments of excitatory synaptic strength are believed to be a major mechanism by which cortical
+networks adapt to the statistics of sensory input, over a range of timescales from
+seconds to days. While the plasticity of excitatory synaptic connections in the
+brain has been widely studied, the plasticity of inhibitory connections is much less
+understood.
+30
+
+2-Dimensional Expansion.
+Neurons are connected by synapses and arranged in a one-dimensional array. Our
+goal is to write a string expression that can be used to implement spatial connection
+patterns and expand the one-dimensional array into a two-dimensional grid. With
+Brian it was possible to modify the implementation of the excitatory and inhibitory
+stdp synapse by connecting the neurons in an initialized and predefined grid of x
+and y axes.
+In the previous version of the simulation tool, spikes were stored as a list of pairs
+(i, t). They describe the index and the time of each spike. For the network used,
+spikes are stored as two arrays i and t, storing the indices and times. The arrays
+can be accessed as attributes of a monitor (SpikeM onitor), which returns both at
+the same time.
+
+Figure 4.4: Schematic representation of spatial connection in Brian2.
+
+31
+
+Two sequential stages of the algorithm.
+The model used in this thesis for the input to the pit organ was based on work
+done previously [11] and is well in accordance with both experimental results and
+theoretical consideration.
+The algorithm, which is used for the inner brain (MON and Torus) in the LL system
+is capable of substantially reducing the mean correlation between responses in torus
+to different hydrodynamic stimuli. It is in accordance with the new experimental
+results and the anatomical arrangement of MON and TS. The idea is to implement
+the same idea and use a two sequential stage algorithm for the input of the pit
+membrane in snakes.
+• 1. Expansion:
+The first part of the network architecture aims to increase the linear separability
+of the input by casting it into a high-dimensional space. The first layer, which
+consists of the input and the membrane receptors, projected randomly and sparsely
+onto the LTTD layer, with the weight wLT T D . This is achived with the excitatory
+stdp-synapse between the first layers.
+• 2. Stimulus distillation:
+As a result of the previous expansion into high dimensions each stimulus yields a
+sparse response randomly spread throughout the LTTD, but the LTTD firing rate
+patterns for different stimuli are well separated. The linear mapping wRC can be
+obtained with a lateral inhibition connection of the LTTD and the RC layer. After
+training, the RC response constitutes a relatively sharp and somatotopic mapping
+of the stimulus.
+Description
+Synaptic variable
+Synaptic variable
+Maximal synaptic weight
+
+Parameter
+Apre
+Apost
+wmax
+
+Value
+0.02
+-0.021
+0.045
+
+Table 4.2: TABLE III: Default network parameters for the stdp-synapse.
+
+32
+
+4.1.4
+
+Measuring map quality
+
+From [11] we define a set of N angles φ = {Φj }N
+j=1 and the complex number:
+zp (Φ) =
+
+N
+X
+
+pj eiϕj
+
+(4.13)
+
+j=1
+
+with pj ≥ 0 and N
+j=1 pj = 1. zp is a convex combination of vectors on a unit circle.
+Following [18] we can assign to Φ the phase [11]:
+P
+
+Izp (Φ)
+φp (Φ) = arctan
+Rzp (Φ)
+
+!
+
+(4.14)
+
+and variance:
+V arp (Φ) ≡ 1 − |zp (Φ)|2 .
+
+(4.15)
+
+Two particular choises for the weights pj are used. The combination with uniform
+weights pj = N1 is called the synchrony vector (SV) [11]
+zSV (Φ) ≡
+
+N
+1 X
+eiϕj .
+N j=1
+
+(4.16)
+
+φSV (Φ) is the average of the angles in Φ and V arSV (Φ) describes the scatter of the
+ϕj around the average.
+• V arSV = 1 means that the ϕj are uniformly scattered, whereas
+• V arSV = 0 implies that all ϕj are equal up to multiples of 2π.
+Given the instantaneous firing rates rw = (rjw )j with [11]:
+ri (t) =
+
+Z t
+0
+
+
+
+h(t, s)g 
+
+
+X
+
+wi,j rj (s) ds
+
+(4.17)
+
+j
+
+w
+and fixed preferred directions (ϕw
+j )j of the n neurons in layer w ∈ {IR, LT T D, RC},
+the the population vector (PV) is defined [11]:
+
+33
+
+w
+n
+X
+
+rjw (t) iϕw
+e j.
+zP V (r ) ≡
+P w
+r
+(t)
+k k
+j=1
+w
+
+(4.18)
+
+The direction φP V (rw ) of the population vector is a biologically plausible way to
+decode stimulus direction from a distributed neuronal code [19]. The variance V arP V
+quantifies how localized the neural activity is.
+Trial-to-trial estimation variability
+xslim (t) is defined as the perpendicular projection of the current stimulus position
+modeled as a set of receptors distributed on a line segment of length L and oriented
+in direction ê. We consider the case for which the projection lies between the head
+and the tail of the animal. The true neuronal position 0 ≤ ϑ(t) < 2π of the stimulus
+is implicitly defined by [11]:
+xslim (t) = x0 +
+
+ϑ(t)
+Lê.
+2π
+
+(4.19)
+
+Starting with the instantaneous firing rates rw (t) the population vector estimate
+ϑˆw (t) of stimulus position can be defined as:
+ϑˆw (t) = φP V (rw (t)).
+
+(4.20)
+
+The difference between true and estimated stimulus position is refered to as the
+estimation error.
+δϑw (t) = ϑˆw (t) − ϑ(t)
+(4.21)
+Let H be the set of all time points during an observation period T at which the
+stimulus is at position (ϑ0 , D0 ) [11]
+H(T, ϑ0 , D0 ) = {0 ≤ t ≤ T |ϑ(t) = ϑ0 ∧ D(t) = D0 }.
+
+(4.22)
+
+The expected estimation error or bias of the map in layer w for a given stimulus
+position is [11]:
+hδϑw i(ϑ0 , D0 ) = lim φSV ({δϑw (t)|t ∈ H(T, ϑ0 , D0 )}).
+T →∞
+
+Similarly, the scatter of δϑw around the mean hδϑw i is denoted as:
+34
+
+(4.23)
+
+w
+(σtrial
+)2 (ϑ0 , D0 ) = lim V arSV ({δϑw (t)|t ∈ H(T, ϑ0 , D0 )})
+T →∞
+
+(4.24)
+
+w
+(ϑ0 , D0 ) is defined as the trial-to-trial variability of the map in layer w at
+σtrial
+stimulus location (ϑ0 , D0 ). It quantifies how strongly the population vector estimate
+is perturbed by noise and changes of stimulus parameters other than it’s location.
+To measure the overall reliability of the map for stimuli at distance D0 , we calculate
+the average trial-to-trial variability ∆w
+trial over all stimulus positions ϑ0 [11]:
+
+2
+(∆w
+trial ) (D0 ) =
+
+1 Z 2π
+w
+dϑ0 (σtrial
+)2 (ϑ0 , D0 ).
+2π 0
+
+(4.25)
+
+Measure of somatotopy.
+An important quantity is the relative segregation (ϑ, ϑ0 ) between two directions ϑ
+and ϑ0 . A uniform shift of the unit circle does not affect the relative distances in the
+map and can easily be adjusted for by multimodal integration and feedback from
+the optic Tectum. However, a smaller variance of the estimation bias throughout
+the map means better somatotopy [11]. The dispartion σθw of the bias in terms of
+the synchrony vector is measured [11]:
+(σθw )2 (D0 ) ≡ lim V arSV ({hδθw i(ϑ0 = 2π
+T →∞
+
+j
+, D0 )}).
+N
+
+(4.26)
+
+The synchrony vector is approximated numerically using 100 positions for σθLL and
+300 positions for σθT S . We refer to σθw as somatotopic error and denote the average
+somatotopic error as ∆w
+θ [11]:
+1
+2
+(∆w
+θ) =
+
+L
+
+Z L
+0
+
+dD0 (σθw )2 (D0 ).
+
+(4.27)
+
+Here we integrate over distances D0 between the input stimulus and the body of the
+fish and snake, taking them below one body length L because for larger distances
+object localization becomes unstable due to fundamental limitations of the noisy
+sensor array [20].
+
+35
+
+Tuning width ratio
+Given asymptotic synaptic weights and the stationarity of signal and noise, the
+tuning curve hrjw i(θ0 ) is obtained by integrating over a sufficiently long period of
+time T [11]:
+X
+1
+rjw (t)
+T →∞ |G(T, ϑ0 )|
+t∈G(T,ϑ0 )
+
+fjw (ϑ0 ) = hrjw i(ϑ0 ) ≡ lim
+
+(4.28)
+
+with the set of time points:
+G(T, ϑ0 ) = {0 ≤ t ≤ T |ϑ(t) = ϑ0 }.
+
+(4.29)
+
+For a given number N of samples from this tuning curve we can construct a population vector zP V (fjw ) with the vector of average rates [11]:
+
+
+w
+fw
+j = fj (ϑ0 = 2π
+
+j N
+)
+N j=1
+
+
+(4.30)
+
+and the corresponding stimulus positions [11]:
+
+
+Φ = 2π
+
+j
+N
+
+N
+
+.
+
+(4.31)
+
+j=1
+
+w
+Using zP V (fw
+j ) we can define the tuning curve width σj of the jth neuron in w as:
+
+(σjw )2 ≡ V arP V (fw
+j )
+
+(4.32)
+
+and the average width of the tuning curves, i.e., the mean dispersion of the average
+firing rates over stimulus positions ϑ0 is:
+w
+
+n
+1 X
+(σjw )2 .
+(σ ) ≡ w
+n j=1
+w 2
+
+(4.33)
+
+The ratio between the average tuning width of the receptors and the map neurons
+in torus, σ IR /σ RC , measures the sharpening of tuning curves. Narrower tuning
+widths, at the same or better performance, indicate more information per spike and
+therefore a more efficient neuronal code [11].
+
+36
+
+37
+
+Chapter 5
+
+5.1
+
+Results
+
+The main goal of our analysis is to show that a simple yet biologically plausible
+model can give rise to a sharp and somatotopic map in RC. Under the minimal
+assumption of feed-forward projections we demonstrate that expansion coding and
+sparse coding in LTTD, and recurrent connectivity in RC are necessary and sufficient
+features for a successful map formation. To measure the quality of the somatotopic
+map as it arises through self-organization, three criteria that we now discuss in turn
+are used.
+Somatotopic error
+The decisive criterion for the success of map formation in our simulations is the
+average somatotopic error ∆RC
+θ . It quantifies how precisely the distances between
+the perpendicular projections of two objects on the animal body are encoded in the
+torus and RC population code. This measure is invariant under uniform rotations of
+the map, since ∆RC
+is based on a synchrony vector [18]. The degree of somatotopy
+θ
+can be evaluated reliably for almost any tuning curve shape because the estimated
+stimulus position is obtained as the angle of the population vector [19]. The main
+idea consists in showing that the model can reach nearly optimal somatotopy in RC
+through recurrent connections both layers. This result is non-trivial because the
+positions and shapes of LTTD tuning curves are highly irregular due to very sparse
+afferent connectivity [23].
+Efficient coding. Sharpening the tuning curve.
+The second criterion for map quality is the average width σw of the tuning curves. It
+is shown that tuning curves can be more than two times sharper in the successfully
+38
+
+trained lateral-line map in torus than in the sensors [11].The same conclusion have
+been attempted for the RC.
+The concentration of the broadly distributed afferent activity patterns into sharp
+responses without sacrificing somatotopic precision of the population code or its
+robustness against noise conclude that the RC can encode stimulus position more
+efficiently than the afferents.
+Robust coding: Minimizing trial-to-trial variability.
+Blurry input and neuronal noise can affect the reliability of a population vector
+estimation, especially when spatially correlated [24]. For quick reactions to pray or
+predators a low trial-to-trial variability ∆w
+noise of the neuronal representation of the
+fish and snake body is crucial. It is to be shown that the population vector in torus
+and RC is up to two times more stable than in the afferents. The map performance
+depends strongly on the distance between stimulus and sensory organ. Stable object
+localization is only possible within about one body length.. In our simulations the
+w
+overall map quality is characterized by the errors ∆w
+θ and ∆noise averaged within
+one body length L.
+
+The resultst form the model show that strong expansion in the second layer is required in order to keep the somatotopic error low and allow stimulus distillation
+to get realized in RC. For 100 receptors in the first layer it is shown that at least
+about 1000 neurons in the second layer are needed and about 3000 neurons suffcient
+to reach optimal alignment. A large number of neurons does not lead to smaller
+errors because the information contained in the noisy responses of a correlated pool
+of neurons saturates for large populations [11]. At the same time the projections
+have to be sparse. An important prerequisite of the input is to be transformed nonlinearly. Sparse coding as a result of nonlinear filtering through threshold elements
+is a common way to decorrelate signals [25].
+In conclusion we find in our numerical study that the biologically observed sparse
+coding and expansion coding is a requirement for self-organized distillation of the
+profoundly blurry input. Additionally, recurrent connectivity with global inhibition
+and local excitation is key to successful map formation. The results are compatible
+with previous work done by Dr. Julie Goulet in [11].
+
+39
+
+Figure 5.1: Examples of somatotopic error as functions of stimulus distance D.
+The somatotopic error σθRC is the deviation of the trained RC map from ideal somatotopy. From the definition of somatotopy it is known:
+• σθRC = 0 means perfect somatotopic alignment of the map, whereas for
+• σθRC = 1 the map responses are uncorrelated with the actual stimulus position.
+In Figure 5.1 an example of different somatotopic error functions for different neuron
+numbers in LTTD are given. The curves show the averaged error over different
+random initialization of the network run. The shaded areas depict one standard
+deviation. The figure illustrates how the error in RC uniformly decreases with
+increasing number of neurons in LTTD. Even for large LTTD sizes, however, the
+somatotopic error grows quickly with distance for D > L.
+In our specific case 3200 neurons in LTTD show nearly an optimal somatotopy in
+RC with lateral inhibition.
+
+40
+
+Figure 5.2: Examples of estimated error as functions of stimulus distance D.
+The sudden loss of somatotopy in RC for distances greater that the body length
+of the snake is due to a fundamental limitation of object localization via the noisy
+input [11]. The somatotopic error σθIR in the afferent rates is always zero but because
+of decreased localization performance for larger distances D its estimate converges
+very slowly with observation period T .
+Figure 5.2 shows different estimated error functions dependent on the relative stimulus distance D/L with four different observation periods. The noise amplitude
+value is constant at σnoise = 5Hz in each network run. For observstion periods T >
+80s a better somatotopic can be seen.
+
+41
+
+Figure 5.3: Average somatotopic error as a function of stimulus distance D .
+
+Overall somatotopy ∆IR
+in the RC map decreases monotonically with number of
+θ
+neurons in LTTD units. As seen in Figure 5.3 at about 3500 MON neurons the error
+is very close to its asymptotic minimum. Larger LTTD sizes do not encode better
+somatotopy. Error bars depict the deviation over different network connectivities.
+
+42
+
+Figure 5.4: Tuning width ratios as functions of stimulus distance D.
+In Figure 5.4 the ratio between the average width σ IR of the tuning curves measured
+in the afferents and the average width σ RC in RC measures the sharpening of the
+neuronal response through nonlinear filtering in LTTD and RC.
+Sharp tuning curves reflect efficient coding. Information about the stimulus position,
+which is broadly distributed over the membrane is concentrated in the activity of
+a smaller fraction of RC neurons at any given time. In the figure above the tuning
+width ratios are represented as functions of stimulus distance D for five different
+noise amplitudes σnoise . Smaller noise amplitudes
+• σnoise = 1Hz and
+• σnoise = 2Hz
+allow a better sharpening of the tuning curves.
+
+43
+
+Figure 5.5: Tuning width ratios as functions of stimulus distance D.
+For any given stimulus angle, the position estimated by the population vector angle
+changes between trials because of noise. The trial-to-trial (estimation) variability
+of a neuron layer is given by the standard deviation of the corresponding population vector angle. The average variability ∆w
+trial over all stimulus angles measures
+IR
+the overall robustness of the population vector estimation. The ratio ∆RC
+trial /∆trial
+quantifies the reduction of sensitivity of PVE to noise.
+In Figure 5.5 The decrease in noise sensitivity is very similar for a wide range of noise
+amplitudes σnoise . Because of the self-averaging property of the learning process it
+is assumed no influence on the final map from the amount of noise during training.
+
+44
+

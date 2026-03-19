@@ -1,0 +1,415 @@
+Chapter 2
+
+2.1
+
+The Lateral Line System
+
+The main motivation for the work is the anatomy of the lateral-line (LL) system of
+fishes and the assumption of a similarity between the way the LL and the pit organ
+in snakes process information.
+Simply put, the LL is a sensory system found in aquatic vertebrates such as adult
+fish, larval amphibians, and some adult amphibians used to detect movement, vibration, and pressure gradients in the surrounding water[5]. The system provides fish
+with spatial perception without using vision and the ability to better navigate in
+their environment, helping them to survive in the challenging environment of oceans,
+seas, and rivers. In other words, through the lateral line fish feel their aquatic world.
+It appears as a faint line of pores throughout the length of the body of fishes and
+tadpoles and passes through the vicinity of the gill covers till the base of the tail as
+seen in Figure 2.1 (A) [5].
+The building blocks of LL are specialized sensory cells called neuromasts and can
+be distributed across almost the entire fish body. They consist of up to several
+thousand neuromasts distributed over the entire surface of the fish body. To better
+understand the functional significance of the LL it is essential to know the physical
+properties of the system itself, the anatomical organisation and most important the
+neurophysiological principles. The most outstanding characteristic of the LL is the
+separation into a population of superficial neuromasts and a population of canal
+neuromasts.
+• Superficial neuromasts (SN): Placed directly on the surface of the skin,
+where they are arranged in lines or clusters on the head, trunk and tail fin.
+They play the role of velocity detectors with the result that neuronal responses
+are proportional to the velocity of the water flowing around the cupula [6].
+3
+
+• Canal neuromasts (CN): Placed in canals on the fish heads and trunk and
+the fluid inside the canals contacts the water surrounding the fish through a
+series of canal pores. Their main function is to detect pressure gradient and
+respond to pressure differences between neighbouring canal pores. Outside the
+canal, the pressure gradient is proportional to the acceleration of the water.
+Thus, CNs may also be regarded as acceleration detectors of water motions
+outside the canal.
+
+Figure 2.1: Lateral line system of a fish. (A) Bodily location of lateral lines. (B)
+Longitudinal section of a canal. (C) Superficial neuromast [13].
+The neuromasts consists of a macula comprising sensory hair cells, supporting cells
+and mantle cells. The ciliary bundles of the hair cells are embedded in a gelatinous
+dome-like structure, the cupula as seen in Figure 2.1 (C). The hair cellls, have a
+protruding bundle of short stereocilia arranged in astair-case design and a single
+kinocilium adjacent to the tallest stereocilium as seen in Figure 2.2. The stereocilia
+and kinocilium form synaptic connections with the nervous tissue at the base and
+project into a potassium ion rich endolymph. The stereocilia are connected together
+by filamentous tip links joining the tip of a lower stereocilia to the side of the
+adjacent higher one. These connection points are locations of ion channels that
+allows potassium ions of enter the endolymph [13].
+When a fish encounters flow relative to it’s surface the surrounding cupula encounters a drag force proportional to the flow velocity and thus deflects in one direction.
+4
+
+Figure 2.2: Depolarization of hair cell due to
+flow-coupled deflection of
+stereocilia [6]
+.
+
+Figure 2.3: Superficial and Canal Neuromasts of
+the Lateral Line [13].
+
+This stimulus displaces the stereocilia towards the kinocilium and elongates the tip
+link. It opens the gate of the ion channel and admitts potassium ions that depolarises the cell. When stereocilia are displaced in the opposite sense, the tension
+in the tip link is reduced and the mechanical ion gate is shut, repolarising the cell.
+In other words, water movements cause deflections of the cupula resulting in the
+shearing of the ciliary bundles, which leads to a change in the hair cells membrane
+potential [6].
+The anatomy of the LL system varies greatly across different species. For example,
+SNs can appear on the skin or recessed in pits with various number and size among
+species. The number and structure of LL canals is also highly variable [6]. Different
+morphologies of the sensory system provide different filter properties. In other
+words, morphology determines the range of stimuli to which a sensory system is
+most sensitive. The number and placement of SNs as well as number and placement
+of canal pores may affect the nature of hydrodynamic information that is received
+by the lateral-line system. These variables strongly determine how information from
+the water surrounding is transferred to the lateral-line system.
+The information from the peripheral LL enters the medulla throuth at least three
+pairs of nerves. These are the dorsal and ventral anterior LL nerves (ALLN) which
+carry information of neuromasts situated on the head. On the other hand the
+posterior LL nerves (PLLN) carry the information of neuromasts situated on the
+trunk. Developmental studies on the zebrafish (Danio rerio) and tracing studies in
+5
+
+goldfish carassius auratus show that the afferents project to the medulla in a crude
+somatotopic manner. The position of the neuromasts along the antero posterior axis
+(from head to tail) of the fish is represented in the central projection of the afferents
+[12].
+
+2.1.1
+
+Lateral-Line Map
+
+The information about the central physiology of hydrodynamic stimuli in fishes
+is limited. Most of the data come from the anatomy and physiology of trout or
+goldfish. For this reason a minimal model is needed, in order to better understand
+some general principles of information processing in the LL system of fishes.
+The brain of vertebrates is composed of two symmetric hemispheres. Two main
+structures, that can be distinguished are the rhobencephalon (hindbrain) and the
+prosencephalon. The later one is devided in two substructures, which are the diencephalon (middle brain) and the telencephalon (forebrain). The rhobencephalon
+is devided in three substrates. This are the myencephalon the metencephalon and
+the mesencephalon. LL information is processed at all levels of the brain from the
+metencephalon up to telencephalon.
+The roots of the LL nerves enter the ipsilateral brainstem and go through the ascending and descending branches. These terminate in the medial octavolateralis nucleus
+(MON). The mechanoreceptors of the LL system project by mean of at least three
+different nerves in the medial octavolateralis nucleus (MON) in the metencephalon.
+Some afferents also terminate in the Eminentia Granularis posterior. The cell of the
+MON will project bi-directionally to the lateral portion of the torus semicircularis
+and also bi-directionally into the deep layer of the tectum opticum. LL information
+will also be processed from the torus and the tectum opticum to higher brain areas
+[12].
+For fish, the cells in the MON answer only to the LL stimulus. In the torus semicircularis some cells may also respond to an auditory stimulus. In the optic tectum,
+the cells are multimodal responding to visual, mechanosensory, auditory and visual stimuli. The projection between torus and optic tectum are topographically
+matched. This means that the LL map in the torus and the multi-modal map in
+the optic tectum should have an organization compatible with each other [13].
+
+6
+
+Figure 2.4: Schematic view of the projection of the LL in the brain of
+teleostean (Picture redrawn from a sketch of Jacob Engelmann). The tectum opticum (top layer) is the first station where all modalities are integrated. The
+first and in fish the only center of multimodal integation, where our considerations
+stop.
+
+7
+
+The neuronal network for the processing of input stimulus in the fish brain consists,
+as mentioned earlier, of two layers:
+• MON with nM ON and
+• TS with nT S neurons, respectively.
+The structure presented in Figure 2.5 is used for a better performance of both an
+expansion and a distillation of the input stimulus. Different combinations of neurons
+were tried, but different network structures did not give better results.
+
+Figure 2.5: Model of network architecture. Primarily, 100 neuromasts are
+connected randomly and sparsly with 3200 neurons in MON. Global inhibition in
+the layer provides gain control, enhancing the dynamic range of the sparse activity.
+MON projects again randomly and weakly somatotopically onto the map in TS.
+Finally. lateral inhibition in TS forms a somatotopic map [11].
+
+8
+
+2.1.2
+
+Hydrodynamic Stimulus
+
+In the first draft of the work a hydrodynamic stimulus was implemented, where the
+lateral line system was represented as a one-dimentional arrangement of superficial
+neuromasts. Boundary conditions were neglected.
+
+Figure 2.6: Schematic representation of the hydrodynamic stimulus at the lateral
+line organ.
+The input consists of a moving sphere S and radius r moving parallel to the fish
+body at distance D and speed U , which are drawn from independent Gaussian
+distributions.
+
+U ∼ N R (µU , σU )
+
+D ∼ N R (µD , σD )
+
+and
+
+(2.1)
+
+We defined (δX, δY ) as the instantaneous direction of motion of the stimulus in
+Cartesian coordinates and the velocity potential as:
+
+φ(X, Y, xi , yi ) =
+
+U R3 (xi − X)δX + (yi − Y )δY
+q
+3 .
+2
+(x − X)2 + (y − Y )2
+i
+
+(2.2)
+
+i
+
+For our case, the velocity parallel to the axis of maximum sensitivity for the cupula
+is [11]
+
+9
+
+vφi =
+
+dφ
+∂φ dxi
+∂φ dyi
+∂φ
+∂φ
+=
++
+=
+δxi +
+δyi
+dθi
+∂xi dθi ∂yi dθi
+∂xi
+∂yi
+
+(2.3)
+
+where
+∂φ
+U R3 [2(xi − X)2 − (yi − Y )2 ]δX + 3(xi − X)(yi − Y )δY
+=−
+q
+5
+dθi
+2
+(x − X)2 + (y − Y )2
+
+(2.4)
+
+U R3 3(xi − X)(yi − Y )δX − [(xi − X)2 − 2(yi − Y )2 ]δY
+∂φ
+=−
+q
+5
+dθi
+2
+(x − X)2 + (y − Y )2
+
+(2.5)
+
+i
+
+i
+
+i
+
+i
+
+It is assumed that the activity rate of the ith SN afferent in head-to-tail direction
+takes the form [11]:
+riLL (X, Y ) = [r0LL + A · vθ (xi , yi , X, Y )]200Hz
++
+
+(2.6)
+
+where r0LL is the instantaneous firing rare and A is a fitted conversion factor. The
+LL
+= 200Hz
+rectification of the firing rates are between 0 and rmax
+
+[r]200Hz
+=
++
+
+
+
+r
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+if 0 ≤ r ≤ 200Hz
+
+0
+
+if r < 0
+
+200Hz
+
+ifr > 200Hz
+
+Different stimuli, water waves and the motion of the fish body itself generate correlated noise in space and time. For this reason an additive Gaussian noise δrill with
+standard deviation σnoise is being added to the previous firing rate. Combining the
+last one with a correlation length Lnoise and a correlation time τnoise this effect can
+be modeled as [11]:
+d LL
+1
+δr (t) = −
+δrLL (t) +
+dt
+τnoise
+
+s
+
+2σnoise
+ξ(t)
+τnoise
+
+(2.7)
+
+ξ(t) is a vector-valued correlation white-noise process with:
+
+hξ(t)i = 0
+
+hξ(t)ξ T (s)i = Rδ(s − t).
+
+and
+10
+
+(2.8)
+
+The nLL × nLL -matrix R describes the spatial correlation between neuromasts [11].
+1 xi−xj
+Ri,j = exp −
+2 Lnoise
+
+
+
+
+2 
+
+(2.9)
+
+Using the hydrodynamic noise, the final expression for the afferent firing rate can
+be derived [11].
+h
+
+riLL (X, Y ) = r0LL + A · vθ (xi , yi , X, Y ) + δrill
+
+i200Hz
++
+
+The parameters mentioned are being listed in the following Table:
+
+Description
+Sphere radius
+Length of lateral line
+Average
+distance
+perpendicular to fish
+Standard deviation
+Average
+stimulus
+speed parallel to fish
+Standard deviation
+Conversion
+factor
+velocity to LL rate
+Instantaneous firing
+rate
+Maximum firing rate
+Standard deviation
+of noise
+Time constant of
+noise correlation
+Correlation length of
+noise
+Fish body long axis
+Short axis
+
+Parameter
+r
+L
+µD
+
+Value
+0.5 cm
+4.0 cm
+1.5 cm
+
+σD
+µU
+
+0.6 cm
+5.0 cm/s
+
+σU
+A
+
+1cm/s
+30000m−
+
+r0LL
+
+40 Hz
+
+LL
+rmax
+σnoise
+
+200 Hz
+10 Hz
+
+τnoise
+
+0.1 s
+
+Lnoise
+
+1.0cm
+
+af ish
+bf ish
+
+2 cm
+0.3 cm
+
+Table 2.1: TABLE I: Default stimulus parameters.
+
+11
+
+(2.10)
+
+12
+
