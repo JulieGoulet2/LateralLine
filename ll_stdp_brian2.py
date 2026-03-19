@@ -1329,6 +1329,36 @@ def save_ts_spikes_vs_x_test_figure(result: dict, out_path: Path):
     plt.close(fig)
 
 
+def save_pv_theta_scatter_test_figure(result: dict, out_path: Path):
+    """
+    Diagnostic: theta_hat vs theta_true during the test window (PV decode).
+    If a map exists, points cluster around the diagonal (mod 2pi).
+    """
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    theta_true = np.asarray(result.get("pv_theta_true", []), dtype=float)
+    theta_hat = np.asarray(result.get("pv_theta_hat", []), dtype=float)
+    if theta_true.size == 0 or theta_hat.size == 0:
+        return
+
+    m = np.isfinite(theta_true) & np.isfinite(theta_hat)
+    if not np.any(m):
+        return
+
+    fig, ax = plt.subplots(1, 1, figsize=(5.5, 5.5))
+    ax.scatter(theta_true[m], theta_hat[m], s=2.0, alpha=0.35, color="tab:blue")
+    ax.plot([0, 2 * np.pi], [0, 2 * np.pi], color="tab:orange", lw=2.0, alpha=0.8)
+    ax.set_xlim(0, 2 * np.pi)
+    ax.set_ylim(0, 2 * np.pi)
+    ax.set_xlabel("theta_true (rad)")
+    ax.set_ylabel("theta_hat (rad)")
+    ax.set_title("PV decode during test: theta_hat vs theta_true")
+    ax.grid(alpha=0.25)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=180)
+    plt.close(fig)
+
+
 def save_multiseed_summary(results: list[dict], out_path: Path):
     """Save PV map-quality summary across seeds."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1792,6 +1822,10 @@ def main():
             f"brian2_ts_spikes_vs_x_test_u_{p_run.speed_cm_s:.1f}_nMON_{p_run.n_mon}_nTS_{p_run.n_ts}_seed_{p_run.seed}.png"
         )
         save_ts_spikes_vs_x_test_figure(r, ts_spike_x_out)
+        pv_scatter_out = Path("Picture") / (
+            f"brian2_pv_theta_scatter_u_{p_run.speed_cm_s:.1f}_nMON_{p_run.n_mon}_nTS_{p_run.n_ts}_seed_{p_run.seed}.png"
+        )
+        save_pv_theta_scatter_test_figure(r, pv_scatter_out)
         artifacts_dir = Path(args.save_weights_dir)
         weights_path, params_path = save_learning_artifacts(r, artifacts_dir, f"{args.save_tag}_seed_{p_run.seed}")
         print(f"Seed {p_run.seed} saved figure: {output}")
@@ -1819,6 +1853,10 @@ def main():
         f"brian2_ts_spikes_vs_x_test_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
     )
     save_ts_spikes_vs_x_test_figure(result, ts_spike_x_out)
+    pv_scatter_out = Path("Picture") / (
+        f"brian2_pv_theta_scatter_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
+    )
+    save_pv_theta_scatter_test_figure(result, pv_scatter_out)
     if args.mode == "ll_thesis":
         latest_plot = Path("Picture") / "LL_THESIS_BASELINE_ACTIVE_latest.png"
         latest_plot.parent.mkdir(parents=True, exist_ok=True)

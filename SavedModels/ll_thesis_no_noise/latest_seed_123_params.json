@@ -8,7 +8,7 @@
   "direction": 1.0,
   "training_noise_scale_early": 0.0,
   "training_noise_scale_late": 0.0,
-  "mon_ts_apre": 0.008,
-  "mon_ts_apost": -0.0084,
-  "mon_ts_wmax": 0.028
+  "mon_ts_apre": 0.006,
+  "mon_ts_apost": -0.0063,
+  "mon_ts_wmax": 0.02
 }
