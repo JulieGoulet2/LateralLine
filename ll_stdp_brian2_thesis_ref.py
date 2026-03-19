@@ -18,6 +18,8 @@ def build_reference_params(
     ts_local_inh_peak_mV: float | None,
     use_ts_feedback_inh: bool,
     ts_feedback_inh_mV: float | None,
+    distance_cm: float | None,
+    training_fixed_distance: bool | None,
 ) -> NetworkParams:
     """
     Build a strict reference configuration for thesis-style checks.
@@ -55,6 +57,16 @@ def build_reference_params(
         p.use_ts_feedback_inh = True
     if ts_feedback_inh_mV is not None:
         p.global_inh_to_ts_mV = float(max(0.0, ts_feedback_inh_mV))
+
+    if distance_cm is not None:
+        p.distance_cm = float(max(0.0, distance_cm))
+        # If training is fixed-distance, align the band to the same value.
+        if training_fixed_distance is True:
+            p.training_fixed_distance = True
+            p.training_distance_min_cm = float(max(0.0, distance_cm))
+            p.training_distance_max_cm = float(max(0.0, distance_cm))
+        elif training_fixed_distance is False:
+            p.training_fixed_distance = False
     return p
 
 
@@ -129,6 +141,12 @@ def main():
     parser.add_argument("--ts-local-inh-peak-mv", type=float, default=None)
     parser.add_argument("--use-ts-feedback-inh", action="store_true")
     parser.add_argument("--ts-feedback-inh-mv", type=float, default=None)
+    parser.add_argument("--distance-cm", type=float, default=None, help="Override stimulus distance cm (test and optionally training).")
+    parser.add_argument(
+        "--training-fixed-distance",
+        action="store_true",
+        help="If set with --distance-cm, use fixed-distance training at the same distance.",
+    )
     args = parser.parse_args()
 
     params = build_reference_params(
@@ -141,6 +159,8 @@ def main():
         ts_local_inh_peak_mV=args.ts_local_inh_peak_mv,
         use_ts_feedback_inh=bool(args.use_ts_feedback_inh),
         ts_feedback_inh_mV=args.ts_feedback_inh_mv,
+        distance_cm=args.distance_cm,
+        training_fixed_distance=True if args.training_fixed_distance else None,
     )
     result = run_spatial_two_stage_model(params)
 

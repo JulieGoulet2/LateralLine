@@ -532,8 +532,11 @@ def pv_map_quality_from_ts_spikes(
     if np.any(valid):
         np.add.at(rates, (k[valid], ts_spike_i[valid]), 1.0 / dt_s)
 
-    # Temporal smoothing improves PV robustness when activity is sparse in single ms bins.
-    smooth_win = max(1, int(round(0.02 / max(dt_s, 1e-9))))  # ~20 ms
+    # Temporal smoothing improves PV robustness when activity is sparse.
+    # Use a slightly longer window so PV has enough TS spikes per bin
+    # to be defined (theta_hat not NaN) during the short test trajectory.
+    smooth_win_s = 0.05  # 50 ms
+    smooth_win = max(1, int(round(smooth_win_s / max(dt_s, 1e-9))))
     if smooth_win > 1:
         kernel = np.ones(smooth_win, dtype=float) / float(smooth_win)
         rates = np.apply_along_axis(lambda v: np.convolve(v, kernel, mode="same"), 0, rates)
