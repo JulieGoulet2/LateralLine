@@ -26,5 +26,3 @@ Runs/
 
 # Notes and local documents
 notes/
-*.md
-!README.md
