@@ -1,8 +1,15 @@
 import argparse
 import json
 import shutil
-from dataclasses import dataclass, replace
+import sys
+from dataclasses import asdict, dataclass, replace
+from datetime import datetime
 from pathlib import Path
+
+# Allow `from stimulus import ...` when the cwd is not the project directory.
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
 
 import brian2 as b2
 import matplotlib.pyplot as plt
@@ -61,8 +68,15 @@ class NetworkParams:
     ll_rate_baseline_subtract_hz: float = 0.0
     ll_rate_gain: float = 1.0
 
-    # Test path exactly 4 cm.
+    # Physical length of the lateral line (fish body axis, cm). Increase to reduce boundary effects.
+    ll_body_length_cm: float = 4.0
+
+    # Test path length along linear x (cm); sphere moves along a longer line than the receptor span.
     test_path_cm: float = 4.0
+    # Optional evaluation window (linear physical x, cm). When both set, PV and test plots use only
+    # samples in [eval_x_min_cm, eval_x_max_cm] and remap x to a local axis for display.
+    eval_x_min_cm: float | None = None
+    eval_x_max_cm: float | None = None
 
     seed: int = 123
 
@@ -112,9 +126,18 @@ class NetworkParams:
     mon_ts_wmax: float = 0.045
     mon_ts_w_init: float = 0.020
     mon_ts_w_jitter: float = 0.010
+    # Homeostatic normalization of incoming MON->TS weights (per TS neuron).
+    mon_ts_homeo_eta: float = 0.02
+    mon_ts_homeo_every_trials: int = 10
 
     # Scale from dimensionless weight to PSP size in mV.
     mon_ts_gain_mV: float = 30.0
+
+    # If True, MON->TS STDP is not disabled before the test phase (default: freeze).
+    keep_mon_ts_stdp_during_test: bool = False
+
+    # If True, test phase uses held snapshots (same sampling as training) instead of continuous sweep.
+    test_using_held_snapshots: bool = False
 
     # -----------------------------
     # Inhibition / noisy background
@@ -162,33 +185,31 @@ def apply_model_mode(params: NetworkParams, mode: str) -> NetworkParams:
             n_training_trials=1000,
             trial_duration_s=1.2,
             checkpoint_trials=5,
-            # Gentler MON->TS STDP so map does not collapse to edge attractors.
-            mon_ts_apre=0.008,
-            mon_ts_apost=-0.0084,
+            mon_ts_apre=0.01,
+            mon_ts_apost=-0.006,
             mon_ts_wmax=0.028,
             mon_ts_w_init=0.020,
             mon_ts_w_jitter=0.005,
-            # Slightly lower feedforward drive to keep TS sparse.
+            mon_ts_homeo_eta=0.02,
+            mon_ts_homeo_every_trials=10,
             ll_mon_w_mean_mV=11.5,
-            # Very weak somatotopy in both expansion and distillation projections.
             ll_to_mon_in_degree=10,
-            # Bootstrap learning with stronger anatomical correlation.
             ll_to_mon_topography_strength=0.08,
             mon_to_ts_topography_strength=0.08,
             mon_to_ts_out_degree=16,
-            mon_to_ts_sigma=140.0,
+            mon_to_ts_sigma=10.0,
             mon_ts_gain_mV=72.0,
             mon_to_global_inh_p=0.03,
             global_inh_to_mon_mV=1.15,
             ts_lateral_radius=18,
-            ts_local_inh_peak_mV=1.4,
+            ts_local_inh_peak_mV=0.9,
             use_ts_feedback_inh=True,
             ts_to_global_inh_p=0.08,
             ts_to_global_inh_drive_mV=0.25,
-            global_inh_to_ts_mV=0.35,
+            global_inh_to_ts_mV=0.2,
             bg_rate_mon_hz=22.0,
-            bg_rate_ts_hz=10.0,
-            bg_w_ts_mV=0.75,
+            bg_rate_ts_hz=20.0,
+            bg_w_ts_mV=0.85,
             # Start with no training noise to verify map mechanism.
             training_noise_scale_early=0.0,
             training_noise_scale_late=0.0,
@@ -196,10 +217,11 @@ def apply_model_mode(params: NetworkParams, mode: str) -> NetworkParams:
             # Train in a near-field distance band for better SNR.
             training_fixed_distance=False,
             training_distance_min_cm=0.8,
-            training_distance_max_cm=1.8,
+            training_distance_max_cm=0.8,
             # Thesis-consistent stimulus speed.
             speed_cm_s=5.0,
             test_path_cm=5.0,
+            distance_cm=0.8,
         )
 
     if mode == "ll_fast":
@@ -213,6 +235,49 @@ def apply_model_mode(params: NetworkParams, mode: str) -> NetworkParams:
         )
 
     raise ValueError(f"Unknown mode '{mode}'. Use 'll_thesis' or 'll_fast'.")
+
+
+# ---------------------------------------------------------
+# Test-phase evaluation window (linear physical x, cm)
+# ---------------------------------------------------------
+def _eval_window_cm(params: NetworkParams) -> tuple[float, float] | None:
+    emin, emax = params.eval_x_min_cm, params.eval_x_max_cm
+    if emin is None and emax is None:
+        return None
+    if emin is None or emax is None:
+        raise ValueError("eval_x_min_cm and eval_x_max_cm must both be set or both None")
+    if float(emax) <= float(emin):
+        raise ValueError("eval_x_max_cm must be greater than eval_x_min_cm")
+    return (float(emin), float(emax))
+
+
+def _test_x_local_bins(
+    x_test: np.ndarray,
+    p: NetworkParams,
+    n_pos_bins: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, str]:
+    """
+    Linear test positions -> local x for binning [0, span].
+    Returns (x_local, ok_time, x_edges, x_centers, xlabel_tag).
+    """
+    w = _eval_window_cm(p)
+    n_t = int(x_test.size)
+    if w is not None:
+        emin, emax = w
+        span = max(float(emax - emin), 1e-12)
+        ok = (x_test >= emin) & (x_test <= emax)
+        x_local = x_test - emin
+        x_edges = np.linspace(0.0, span, n_pos_bins + 1)
+        tag = f"eval window [{emin:.3f},{emax:.3f}] cm, local x"
+    else:
+        ok = np.ones(n_t, dtype=bool)
+        xmin = float(np.min(x_test))
+        span = max(float(np.ptp(x_test)), 1e-12)
+        x_local = x_test - xmin
+        x_edges = np.linspace(0.0, span, n_pos_bins + 1)
+        tag = "linear x (full test path)"
+    x_centers = 0.5 * (x_edges[:-1] + x_edges[1:])
+    return x_local, ok, x_edges, x_centers, tag
 
 
 # ---------------------------------------------------------
@@ -283,6 +348,10 @@ def build_ll_to_mon_indices(
     topography_strength:
       0.0 -> fully random
       1.0 -> fully weak-somatotopic
+
+    Topographic Gaussian draws use the LL ring (period n_ll): rounded samples are reduced
+    mod n_ll, matching periodic distance on equispaced receptors on [0, L] (see
+    periodic_line_distance_abs in stimulus.py for the continuous analogue).
     """
     rng = np.random.default_rng(seed)
     mon_pos = np.linspace(0.0, 1.0, n_mon)
@@ -301,8 +370,9 @@ def build_ll_to_mon_indices(
                 topo_sources = rng.integers(0, n_ll, size=n_topo)
             else:
                 center = mon_pos[mon_idx] * (n_ll - 1)
-                topo_sources = np.rint(rng.normal(center, sigma_ll, size=n_topo)).astype(int)
-                topo_sources = np.clip(topo_sources, 0, n_ll - 1)
+                raw = rng.normal(center, sigma_ll, size=n_topo)
+                # Ring wrap in index space (no seam at 0 / n_ll-1); same topology as periodic_line_distance_abs on [0, L).
+                topo_sources = np.clip(np.rint(raw).astype(np.int64), 0, n_ll - 1).astype(int)
             parts.append(topo_sources)
 
         if n_rand > 0:
@@ -379,7 +449,7 @@ def _sample_instantaneous_rates(
 def make_training_rates(params: NetworkParams):
     """Balanced-position snapshot training stream for all training trials."""
     rng = np.random.default_rng(params.seed)
-    stim_params = StimulusParams()
+    stim_params = StimulusParams(lateral_line_length_cm=params.ll_body_length_cm)
 
     xi_cm = np.linspace(0.0, stim_params.lateral_line_length_cm, params.n_ll)
     yi_cm = np.zeros_like(xi_cm)
@@ -387,6 +457,9 @@ def make_training_rates(params: NetworkParams):
 
     total_train_s = params.n_training_trials * params.trial_duration_s
     n_steps = int(np.round(total_train_s / params.dt_s))
+    if n_steps <= 0:
+        return np.zeros((0, params.n_ll), dtype=float), [], np.zeros(0, dtype=float)
+
     hold_steps = max(1, int(np.round(params.training_position_hold_s / params.dt_s)))
 
     rates = np.zeros((n_steps, params.n_ll), dtype=float)
@@ -450,9 +523,8 @@ def make_test_rates(params: NetworkParams):
     over-emphasized by geometry.
     """
     test_duration_s = params.test_path_cm / max(params.speed_cm_s, 1e-9)
-    # Place the sphere center so that a 5 cm path covers [-0.5, 4.5] when direction=+1.
-    # For any path length, we start at x = -0.5 and move forward; LL neuromasts still span 0..4 cm.
-    stim_params = StimulusParams()
+    # Start 0.5 cm before the lateral line; sphere moves forward along the test path.
+    stim_params = StimulusParams(lateral_line_length_cm=params.ll_body_length_cm)
     x0_cm = -0.5 if params.direction >= 0 else (stim_params.lateral_line_length_cm + 0.5)
     sim = simulate_lateral_line(
         duration_s=test_duration_s,
@@ -465,7 +537,82 @@ def make_test_rates(params: NetworkParams):
         x0_cm=x0_cm,
         params=stim_params,
     )
+    # Physical stimulus position X_cm stays linear (no toroidal wrap); use --eval-x-min/--eval-x-max for analysis window.
     return sim
+
+
+def make_test_rates_held_snapshots(params: NetworkParams):
+    """
+    Same total duration as make_test_rates (test_path_cm / speed), but LL drive is built from
+    held snapshots sampled like training positions (x_bins sweeps / shuffle, hold, noise curriculum).
+    """
+    rng = np.random.default_rng(params.seed + 999)
+    stim_params = StimulusParams(lateral_line_length_cm=params.ll_body_length_cm)
+    xi_cm = np.linspace(0.0, stim_params.lateral_line_length_cm, params.n_ll)
+    yi_cm = np.zeros_like(xi_cm)
+    noise_chol = _build_spatial_noise_cholesky(xi_cm, stim_params)
+
+    test_duration_s = params.test_path_cm / max(params.speed_cm_s, 1e-9)
+    t = np.arange(0.0, test_duration_s, params.dt_s)
+    n_steps = int(t.size)
+    hold_steps = max(1, int(np.round(params.training_position_hold_s / params.dt_s)))
+
+    rates = np.zeros((n_steps, params.n_ll), dtype=float)
+    x_trace_cm = np.zeros(n_steps, dtype=float)
+    y_trace_cm = np.zeros(n_steps, dtype=float)
+
+    x_bins = np.linspace(0.0, stim_params.lateral_line_length_cm, params.n_ll)
+    x_seq: list[float] = []
+    if params.training_ordered_sweeps:
+        while len(x_seq) * hold_steps < n_steps:
+            x_seq.extend(x_bins.tolist())
+            x_seq.extend(x_bins[::-1].tolist())
+    else:
+        while len(x_seq) * hold_steps < n_steps:
+            xb = x_bins.copy()
+            rng.shuffle(xb)
+            x_seq.extend(xb.tolist())
+
+    idx = 0
+    k = 0
+    while idx < n_steps:
+        frac = idx / max(1, n_steps - 1)
+        noise_scale = (
+            params.training_noise_scale_early
+            if frac < params.training_noise_switch_fraction
+            else params.training_noise_scale_late
+        )
+        inst_rates, meta = _sample_instantaneous_rates(
+            rng,
+            params,
+            stim_params,
+            xi_cm,
+            yi_cm,
+            noise_chol,
+            x_cm=x_seq[k],
+            noise_scale=noise_scale,
+            fixed_distance_cm=(stim_params.mu_distance_cm if params.training_fixed_distance else None),
+            fixed_direction=(1.0 if (params.training_bidirectional is False or (k % 2 == 0)) else -1.0),
+            distance_min_cm=params.training_distance_min_cm,
+            distance_max_cm=params.training_distance_max_cm,
+        )
+        nxt = min(n_steps, idx + hold_steps)
+        rates[idx:nxt, :] = inst_rates[None, :]
+        x_trace_cm[idx:nxt] = float(meta["X_cm"])
+        y_trace_cm[idx:nxt] = meta["D_cm"]
+        idx = nxt
+        k += 1
+
+    return {
+        "t_s": t,
+        "xi_cm": xi_cm,
+        "X_cm": x_trace_cm,
+        "Y_cm": y_trace_cm,
+        "U_cm_s": float(params.speed_cm_s),
+        "D_cm": float(np.mean(y_trace_cm)) if n_steps else 0.0,
+        "direction": float(params.direction),
+        "rates_hz": rates,
+    }
 
 
 # ---------------------------------------------------------
@@ -501,6 +648,8 @@ def pv_map_quality_from_ts_spikes(
     test_start_s: float,
     dt_s: float,
     n_pos_bins: int = 100,
+    eval_x_min_cm: float | None = None,
+    eval_x_max_cm: float | None = None,
 ):
     """
     Population-vector map quality following thesis §4.1.4 ideas:
@@ -508,6 +657,12 @@ def pv_map_quality_from_ts_spikes(
     - delta_theta(t) = theta_hat - theta_true (wrapped)
     - bias(theta0), trial variability sigma_trial(theta0)
     - somatotopic error sigma_theta = dispersion of bias over theta0
+
+    If eval_x_min_cm and eval_x_max_cm are set, only time bins whose linear test_x_cm lies in
+    [eval_x_min_cm, eval_x_max_cm] contribute (others zeroed before smoothing); theta_true maps
+    that window linearly to [0, 2pi). Otherwise theta_true maps the full test x trace linearly
+    to [0, 2pi) using min/max of test_x_cm.
+    lateral_line_len_cm is unused when eval window is set; kept for API compatibility.
     """
     n_t = test_t_s.size
     rates = np.zeros((n_t, n_ts), dtype=float)
@@ -518,6 +673,15 @@ def pv_map_quality_from_ts_spikes(
     valid = (k >= 0) & (k < n_t) & (ts_spike_i >= 0) & (ts_spike_i < n_ts)
     if np.any(valid):
         np.add.at(rates, (k[valid], ts_spike_i[valid]), 1.0 / dt_s)
+
+    use_win = eval_x_min_cm is not None and eval_x_max_cm is not None
+    if use_win:
+        emin = float(eval_x_min_cm)
+        emax = float(eval_x_max_cm)
+        ok = (test_x_cm >= emin) & (test_x_cm <= emax)
+        rates[~ok, :] = 0.0
+    else:
+        ok = np.ones(n_t, dtype=bool)
 
     # Temporal smoothing improves PV robustness when activity is sparse in single ms bins.
     smooth_win = max(1, int(round(0.02 / max(dt_s, 1e-9))))  # ~20 ms
@@ -538,13 +702,17 @@ def pv_map_quality_from_ts_spikes(
     theta_hat[nz] = np.mod(np.angle(z[nz]), 2.0 * np.pi)
     theta_hat[~nz] = np.nan
 
-    # True position mapped to angle.
-    x_clip = np.clip(test_x_cm, 0.0, lateral_line_len_cm)
-    theta_true = 2.0 * np.pi * x_clip / lateral_line_len_cm
+    theta_true = np.full(n_t, np.nan, dtype=float)
+    if use_win:
+        wspan = float(emax - emin)
+        theta_true[ok] = 2.0 * np.pi * (test_x_cm[ok] - emin) / max(wspan, 1e-12)
+    else:
+        span = float(np.ptp(test_x_cm)) + 1e-12
+        theta_true[:] = 2.0 * np.pi * (test_x_cm - float(np.min(test_x_cm))) / span
 
     # Estimation error.
     delta = np.full(n_t, np.nan, dtype=float)
-    m = np.isfinite(theta_hat)
+    m = np.isfinite(theta_hat) & np.isfinite(theta_true)
     delta[m] = _wrap_to_pi(theta_hat[m] - theta_true[m])
 
     # Position-dependent bias and trial variability.
@@ -561,7 +729,7 @@ def pv_map_quality_from_ts_spikes(
             sigma_trial[b] = _circ_std(_wrap_to_pi(eb - mu)) if eb.size >= 2 else 0.0
 
     vb = np.isfinite(bias)
-    vd = np.isfinite(delta)
+    vd = np.isfinite(delta) & ok
     sigma_theta = _circ_std(bias[vb]) if np.any(vb) else (_circ_std(delta[vd]) if np.any(vd) else np.pi)
     delta_trial = (
         float(np.sqrt(np.nanmean(sigma_trial**2)))
@@ -607,7 +775,7 @@ def estimate_stabilization_time(epoch_t_s: np.ndarray, w_mean_series: np.ndarray
 def run_spatial_two_stage_model(params: NetworkParams):
     # Build training and test stimuli.
     train_rates, train_samples, train_x_cm = make_training_rates(params)
-    test_sim = make_test_rates(params)
+    test_sim = make_test_rates_held_snapshots(params) if bool(params.test_using_held_snapshots) else make_test_rates(params)
     test_rates = test_sim["rates_hz"]
 
     # Concatenate training + test in one TimedArray.
@@ -696,11 +864,11 @@ def run_spatial_two_stage_model(params: NetworkParams):
             on_pre="""
             ge_post += w
             apre += Apre
-            w = clip(w + apost*mV, 0*mV, wmax)
+            w = clip(w + apost*w, 0*mV, wmax)
             """,
             on_post="""
             apost += Apost
-            w = clip(w + apre*mV, 0*mV, wmax)
+            w = clip(w + apre*(wmax - w), 0*mV, wmax)
             """,
             namespace={
                 "taupre": 20 * b2.ms,
@@ -871,10 +1039,12 @@ def run_spatial_two_stage_model(params: NetworkParams):
                     n_ts=params.n_ts,
                     test_t_s=t_win,
                     test_x_cm=x_win,
-                    lateral_line_len_cm=float(StimulusParams().lateral_line_length_cm),
+                    lateral_line_len_cm=float(params.ll_body_length_cm),
                     test_start_s=last_ckpt_t,
                     dt_s=params.dt_s,
                     n_pos_bins=min(100, params.n_ts),
+                    eval_x_min_cm=None,
+                    eval_x_max_cm=None,
                 )
                 pv_ckpt_t_s.append(t_cur)
                 pv_sigma_theta_series.append(pv_ck["sigma_theta"])
@@ -906,9 +1076,25 @@ def run_spatial_two_stage_model(params: NetworkParams):
                 w_ll_arr = np.clip(w_ll_arr * scale[j_ll_conn], 0.0, params.ll_mon_wmax_mV)
                 s_ll_mon.w = w_ll_arr * b2.mV
 
-    # Freeze STDP for test.
-    s_mon_ts.namespace["Apre"] = 0.0
-    s_mon_ts.namespace["Apost"] = 0.0
+        # MON->TS homeostasis every mon_ts_homeo_every_trials.
+        if params.mon_ts_homeo_eta > 0.0 and (k + 1) % max(1, params.mon_ts_homeo_every_trials) == 0:
+            w_mts_arr = np.array(s_mon_ts.w[:], dtype=float, copy=True)
+            j_mts_conn = np.array(s_mon_ts.j[:], dtype=int, copy=True)
+            incoming_ts = np.bincount(j_mts_conn, weights=w_mts_arr, minlength=params.n_ts)
+            scale_ts = np.ones(params.n_ts, dtype=float)
+            nonzero_ts = incoming_ts > 1e-12
+            if np.any(nonzero_ts):
+                target_ts = float(np.mean(incoming_ts[nonzero_ts]))
+                ratio_ts = target_ts / np.maximum(incoming_ts[nonzero_ts], 1e-12)
+                scale_ts[nonzero_ts] = 1.0 + params.mon_ts_homeo_eta * (ratio_ts - 1.0)
+                scale_ts = np.clip(scale_ts, 0.9, 1.1)
+                w_mts_arr = np.clip(w_mts_arr * scale_ts[j_mts_conn], 0.0, params.mon_ts_wmax)
+                s_mon_ts.w = w_mts_arr
+
+    # Freeze STDP for test (unless diagnostic: keep learning during test).
+    if not bool(params.keep_mon_ts_stdp_during_test):
+        s_mon_ts.namespace["Apre"] = 0.0
+        s_mon_ts.namespace["Apost"] = 0.0
 
     # Test run.
     b2.run(test_duration_s * b2.second, report="text")
@@ -923,13 +1109,42 @@ def run_spatial_two_stage_model(params: NetworkParams):
         n_ts=params.n_ts,
         test_t_s=np.asarray(test_sim["t_s"], dtype=float),
         test_x_cm=np.asarray(test_sim["X_cm"], dtype=float),
-        lateral_line_len_cm=float(StimulusParams().lateral_line_length_cm),
+        lateral_line_len_cm=float(params.ll_body_length_cm),
         test_start_s=train_duration_s,
         dt_s=params.dt_s,
         n_pos_bins=min(100, params.n_ts),
+        eval_x_min_cm=params.eval_x_min_cm,
+        eval_x_max_cm=params.eval_x_max_cm,
     )
 
     stab_t = estimate_stabilization_time(np.asarray(checkpoint_t_s), np.asarray(w_mean_series))
+
+    ll_t = np.asarray(sp_ll.t / b2.second, dtype=float)
+    mon_t = np.asarray(sp_mon.t / b2.second, dtype=float)
+    ts_t_abs = np.asarray(sp_ts.t / b2.second, dtype=float)
+    t_tr = float(train_duration_s)
+    t_te = float(train_duration_s + test_duration_s)
+    d_te = float(test_duration_s)
+    n_ll = int(params.n_ll)
+    n_mon = int(params.n_mon)
+    m_ll_tr = (ll_t >= 0.0) & (ll_t < t_tr)
+    m_ll_te = (ll_t >= t_tr) & (ll_t < t_te)
+    m_mon_tr = (mon_t >= 0.0) & (mon_t < t_tr)
+    m_mon_te = (mon_t >= t_tr) & (mon_t < t_te)
+    m_ts_tr = (ts_t_abs >= 0.0) & (ts_t_abs < t_tr)
+    m_ts_te = (ts_t_abs >= t_tr) & (ts_t_abs < t_te)
+    ll_rate_tr_hz = float(np.count_nonzero(m_ll_tr)) / max(1e-300, n_ll * t_tr)
+    ll_rate_te_hz = float(np.count_nonzero(m_ll_te)) / max(1e-300, n_ll * d_te)
+    mon_rate_tr_hz = float(np.count_nonzero(m_mon_tr)) / max(1e-300, n_mon * t_tr)
+    mon_rate_te_hz = float(np.count_nonzero(m_mon_te)) / max(1e-300, n_mon * d_te)
+    n_ts_spikes_tr = int(np.count_nonzero(m_ts_tr))
+    n_ts_spikes_te = int(np.count_nonzero(m_ts_te))
+    print(f"[debug] mean LL rate (train): {ll_rate_tr_hz:.6g} Hz")
+    print(f"[debug] mean LL rate (test): {ll_rate_te_hz:.6g} Hz")
+    print(f"[debug] mean MON rate (train): {mon_rate_tr_hz:.6g} Hz")
+    print(f"[debug] mean MON rate (test): {mon_rate_te_hz:.6g} Hz")
+    print(f"[debug] total TS spikes (train): {n_ts_spikes_tr}")
+    print(f"[debug] total TS spikes (test): {n_ts_spikes_te}")
 
     return {
         "params": params,
@@ -1140,6 +1355,126 @@ def save_summary_figure(result, out_path: Path):
     plt.close(fig)
 
 
+def save_test_phase_only_figure(result, out_path: Path):
+    """
+    Plot ONLY the test segment: time axis 0 .. test_duration_s (not full train+test).
+    Lets you see LL / MON / TS during the continuous moving-sphere test without training clutter.
+    """
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    p = result["params"]
+    sp_ll = result["sp_ll"]
+    sp_mon = result["sp_mon"]
+    sp_ts = result["sp_ts"]
+    pr_mon = result["pr_mon"]
+    pr_ts = result["pr_ts"]
+    tsim = result["test_sim"]
+
+    t_train = float(result["train_duration_s"])
+    t_end = float(result["total_duration_s"])
+    test_dur = float(result["test_duration_s"])
+
+    # Stimulus trajectory during test (test_sim time base is already 0 .. test_dur).
+    t_stim = np.asarray(tsim["t_s"], dtype=float)
+    x_stim = np.asarray(tsim["X_cm"], dtype=float)
+
+    fig, axes = plt.subplots(5, 1, figsize=(14, 12), sharex=True)
+
+    axes[0].plot(t_stim, x_stim, color="tab:red", lw=1.8)
+    axes[0].set_ylabel("sphere X (cm)")
+    axes[0].set_title("Test phase only — stimulus (continuous sweep)")
+    axes[0].grid(alpha=0.3)
+
+    # Spikes: map absolute time -> time since test start.
+    ll_t = np.asarray(sp_ll.t / b2.second, dtype=float)
+    ll_i = np.asarray(sp_ll.i, dtype=int)
+    m = (ll_t >= t_train) & (ll_t < t_end)
+    axes[1].scatter(ll_t[m] - t_train, ll_i[m], s=0.35, color="black")
+    axes[1].set_ylabel("LL index")
+    axes[1].set_title("LL spikes (test only)")
+    axes[1].set_xlim(0.0, test_dur)
+    axes[1].grid(alpha=0.3)
+
+    mon_subset = min(400, p.n_mon)
+    mt = np.asarray(sp_mon.t / b2.second, dtype=float)
+    mi = np.asarray(sp_mon.i, dtype=int)
+    m = (mt >= t_train) & (mt < t_end) & (mi < mon_subset)
+    axes[2].scatter(mt[m] - t_train, mi[m], s=0.35, color="tab:purple")
+    axes[2].set_ylabel("MON index")
+    axes[2].set_title(f"MON spikes (test only, first {mon_subset})")
+    axes[2].set_xlim(0.0, test_dur)
+    axes[2].grid(alpha=0.3)
+
+    tt = np.asarray(sp_ts.t / b2.second, dtype=float)
+    ti = np.asarray(sp_ts.i, dtype=int)
+    m = (tt >= t_train) & (tt < t_end)
+    axes[3].scatter(tt[m] - t_train, ti[m], s=0.6, color="tab:green")
+    axes[3].set_ylabel("TS index")
+    axes[3].set_title("TS spikes (test only)")
+    axes[3].set_xlim(0.0, test_dur)
+    axes[3].grid(alpha=0.3)
+
+    t_abs_m = np.asarray(pr_mon.t / b2.second, dtype=float)
+    r_m = np.asarray(pr_mon.smooth_rate(width=20 * b2.ms) / b2.Hz, dtype=float)
+    t_abs_t = np.asarray(pr_ts.t / b2.second, dtype=float)
+    r_t = np.asarray(pr_ts.smooth_rate(width=20 * b2.ms) / b2.Hz, dtype=float)
+    mm = (t_abs_m >= t_train) & (t_abs_m < t_end)
+    mt_ = (t_abs_t >= t_train) & (t_abs_t < t_end)
+    axes[4].plot(t_abs_m[mm] - t_train, r_m[mm], label="MON", color="tab:purple", lw=1.2)
+    axes[4].plot(t_abs_t[mt_] - t_train, r_t[mt_], label="TS", color="tab:green", lw=1.2)
+    axes[4].set_xlabel("time since test start (s)")
+    axes[4].set_ylabel("rate (Hz)")
+    axes[4].set_title("Population rates (test only, 20 ms smooth)")
+    axes[4].set_xlim(0.0, test_dur)
+    axes[4].legend()
+    axes[4].grid(alpha=0.3)
+
+    fig.suptitle(
+        f"TEST ONLY (duration {test_dur:.3f} s) — train ends at {t_train:.3f} s in full run",
+        y=1.01,
+    )
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=180)
+    plt.close(fig)
+
+
+def save_ts_pop_rate_train_test_transition_figure(result: dict, out_path: Path):
+    """
+    TS population rate (20 ms smooth) in a window around train→test: [train-2s, train+test].
+    Vertical line at train end.
+    """
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    pr_ts = result["pr_ts"]
+    t_train = float(result["train_duration_s"])
+    test_dur = float(result["test_duration_s"])
+    t_lo = max(0.0, t_train - 2.0)
+    t_hi = t_train + test_dur
+
+    t_abs = np.asarray(pr_ts.t / b2.second, dtype=float)
+    r_ts = np.asarray(pr_ts.smooth_rate(width=20 * b2.ms) / b2.Hz, dtype=float)
+    m = (t_abs >= t_lo) & (t_abs <= t_hi)
+    if not np.any(m):
+        fig, ax = plt.subplots(1, 1, figsize=(9, 3.8))
+        ax.text(0.5, 0.5, "no TS rate samples in window", ha="center", va="center", transform=ax.transAxes)
+        ax.set_xlabel("time (s)")
+        ax.set_ylabel("TS population rate (Hz)")
+        ax.set_title("TS population rate around train→test transition")
+    else:
+        fig, ax = plt.subplots(1, 1, figsize=(9, 3.8))
+        ax.plot(t_abs[m], r_ts[m], color="tab:green", lw=1.2)
+        ax.axvline(t_train, color="tab:red", ls="--", lw=1.2, label="train end")
+        ax.set_xlim(t_lo, t_hi)
+        ax.set_xlabel("time (s)")
+        ax.set_ylabel("TS population rate (Hz)")
+        ax.set_title("TS population rate around train→test transition (20 ms smooth)")
+        ax.legend(loc="upper right", fontsize=8)
+        ax.grid(alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=180)
+    plt.close(fig)
+
+
 def save_ts_tuning_figure(result, out_path: Path, n_examples: int = 16):
     """
     Diagnostic: TS tuning curves vs position during the 4 cm test sweep.
@@ -1174,13 +1509,11 @@ def save_ts_tuning_figure(result, out_path: Path, n_examples: int = 16):
     if np.any(valid):
         np.add.at(rates, (k[valid], ts_i[valid]), 1.0 / dt)
 
-    # Bin by position along the 4 cm test path.
     n_pos_bins = min(40, n_t)
-    x_edges = np.linspace(x_test.min(), x_test.max(), n_pos_bins + 1)
-    x_centers = 0.5 * (x_edges[:-1] + x_edges[1:])
+    x_local, ok_t, x_edges, x_centers, xtag = _test_x_local_bins(x_test, p, n_pos_bins)
     tuning = np.zeros((p.n_ts, n_pos_bins), dtype=float)
     for b in range(n_pos_bins):
-        mb = (x_test >= x_edges[b]) & (x_test < x_edges[b + 1])
+        mb = ok_t & (x_local >= x_edges[b]) & (x_local < x_edges[b + 1])
         if not np.any(mb):
             continue
         tuning[:, b] = rates[mb, :].mean(axis=0)
@@ -1194,11 +1527,412 @@ def save_ts_tuning_figure(result, out_path: Path, n_examples: int = 16):
         ax.plot(x_centers, tuning[j, :], "-o", ms=3)
         ax.set_ylabel(f"TS {j}")
         ax.grid(alpha=0.3)
-    axes[-1].set_xlabel("position x during test (cm)")
+    axes[-1].set_xlabel(f"position x during test ({xtag})")
     fig.suptitle("TS tuning curves vs x (test sweep)", y=1.02)
     fig.tight_layout()
     fig.savefig(out_path, dpi=180)
     plt.close(fig)
+
+
+def save_mon_to_ts_weight_profile(result: dict, out_path: Path):
+    """
+    Diagnostic: average MON->TS synaptic weight vs TS index after learning.
+    Helps detect edge attractors or collapsed maps (peaks at TS 0 / n_ts-1).
+    """
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    p = result.get("params", None)
+    if p is None:
+        return
+    w = np.asarray(result.get("w_after", []), dtype=float)
+    j = np.asarray(result.get("mon_to_ts_j", []), dtype=int)
+    if w.size == 0 or j.size == 0:
+        return
+
+    n_ts = int(p.n_ts)
+    avg_w = np.zeros(n_ts, dtype=float)
+    sat_frac = np.zeros(n_ts, dtype=float)
+    for ts_idx in range(n_ts):
+        m = j == ts_idx
+        if not np.any(m):
+            avg_w[ts_idx] = 0.0
+            sat_frac[ts_idx] = 0.0
+            continue
+        avg_w[ts_idx] = float(np.mean(w[m]))
+        sat_frac[ts_idx] = float(np.mean(np.isclose(w[m], float(p.mon_ts_wmax))))
+
+    fig, ax = plt.subplots(1, 1, figsize=(10, 4.2))
+    ax.plot(np.arange(n_ts), avg_w, lw=2.0, color="tab:blue")
+    ax.set_xlabel("TS index")
+    ax.set_ylabel("average MON->TS weight (dimensionless)")
+    ax.set_title("MON->TS weight profile vs TS index (after learning)")
+    ax.grid(alpha=0.3)
+
+    ax2 = ax.twinx()
+    ax2.plot(np.arange(n_ts), sat_frac, lw=1.5, color="tab:red", alpha=0.7)
+    ax2.set_ylabel("fraction at wmax")
+
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=180)
+    plt.close(fig)
+
+
+def save_mon_to_ts_receptive_fields_figure(result: dict, out_path: Path, n_examples: int = 8):
+    """
+    Diagnostic: incoming MON->TS weights vs MON index for example TS neurons (receptive fields).
+    """
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    p = result.get("params", None)
+    if p is None:
+        return
+    w = np.asarray(result.get("w_after", []), dtype=float)
+    i_mon = np.asarray(result.get("mon_to_ts_i", []), dtype=int)
+    j_ts = np.asarray(result.get("mon_to_ts_j", []), dtype=int)
+    if w.size == 0 or i_mon.size == 0 or j_ts.size == 0:
+        return
+    if w.size != i_mon.size or w.size != j_ts.size:
+        return
+
+    n_ts = int(p.n_ts)
+    n_mon = int(p.n_mon)
+    n_plot = min(int(n_examples), n_ts)
+    ts_pick = np.linspace(0, n_ts - 1, num=n_plot, dtype=int)
+
+    ncols = 2
+    nrows = int(np.ceil(n_plot / ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(12, 2.8 * nrows), sharex=False, sharey=False)
+    axes_flat = np.atleast_1d(axes).ravel()
+    for idx, ax in enumerate(axes_flat):
+        if idx >= n_plot:
+            ax.set_visible(False)
+            continue
+        ts_idx = int(ts_pick[idx])
+        m = j_ts == ts_idx
+        if not np.any(m):
+            ax.set_title(f"TS {ts_idx} (no synapses)")
+            ax.text(0.5, 0.5, "no incoming", ha="center", va="center", transform=ax.transAxes)
+            continue
+        mon_idx = i_mon[m]
+        w_sub = w[m]
+        ax.scatter(mon_idx, w_sub, s=4, alpha=0.45, color="tab:blue", edgecolors="none")
+        ax.set_xlim(-0.5, max(n_mon - 0.5, 0.5))
+        ax.set_xlabel("MON index")
+        ax.set_ylabel("MON->TS weight")
+        ax.set_title(f"TS {ts_idx} (incoming synapses: {int(np.count_nonzero(m))})")
+        ax.grid(alpha=0.3)
+
+    fig.suptitle("MON->TS receptive fields (incoming weights)", y=1.02)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=180)
+    plt.close(fig)
+
+
+def save_ts_spikes_vs_x_test_figure(result: dict, out_path: Path):
+    """
+    Diagnostic scatter: TS index vs stimulus position x during the test window only.
+    A somatotopic map appears as a diagonal band (not vertical stripes).
+    """
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    p = result["params"]
+    sp_ts = result["sp_ts"]
+    test_sim = result["test_sim"]
+    train_duration_s = float(result["train_duration_s"])
+    test_duration_s = float(result["test_duration_s"])
+    t_test_end = train_duration_s + test_duration_s
+
+    x_test = np.asarray(test_sim["X_cm"], dtype=float)
+    dt = float(p.dt_s)
+
+    ts_t_abs = np.asarray(sp_ts.t / b2.second, dtype=float)
+    ts_i = np.asarray(sp_ts.i, dtype=int)
+
+    m = (ts_t_abs >= train_duration_s) & (ts_t_abs < t_test_end)
+    if not np.any(m):
+        fig, ax = plt.subplots(1, 1, figsize=(8, 4.2))
+        ax.text(0.5, 0.5, "No TS spikes during test", ha="center", va="center", transform=ax.transAxes, fontsize=12)
+        ax.set_xlabel("stimulus x (cm, linear)")
+        ax.set_ylabel("TS index")
+        ax.set_title("TS spikes vs x during test window")
+        ax.grid(alpha=0.25)
+        fig.tight_layout()
+        fig.savefig(out_path, dpi=180)
+        plt.close(fig)
+        return
+
+    ts_t_rel = ts_t_abs[m] - train_duration_s
+    ts_i = ts_i[m]
+
+    k = np.floor(ts_t_rel / dt).astype(int)
+    valid = (k >= 0) & (k < x_test.size) & (ts_i >= 0) & (ts_i < p.n_ts)
+    if not np.any(valid):
+        print("No valid TS spikes after time-to-index mapping")
+        return
+
+    x_sp = x_test[k[valid]]
+    ts_i = ts_i[valid]
+
+    w = _eval_window_cm(p)
+    if w is not None:
+        emin, emax = w
+        mwin = (x_sp >= emin) & (x_sp <= emax)
+        if not np.any(mwin):
+            fig, ax = plt.subplots(1, 1, figsize=(8, 4.2))
+            ax.text(
+                0.5,
+                0.5,
+                "No TS spikes in eval x window",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+                fontsize=12,
+            )
+            ax.set_xlabel(f"eval x [{emin:.3f},{emax:.3f}] cm (local)")
+            ax.set_ylabel("TS index")
+            ax.set_title("TS spikes vs x during test window")
+            ax.grid(alpha=0.25)
+            fig.tight_layout()
+            fig.savefig(out_path, dpi=180)
+            plt.close(fig)
+            return
+        x_sp = x_sp[mwin] - emin
+        ts_i = ts_i[mwin]
+        xlab = f"x in eval window (local 0 at {emin:.3f} cm)"
+    else:
+        xlab = "stimulus x (cm, linear)"
+
+    fig, ax = plt.subplots(1, 1, figsize=(8, 4.2))
+    ax.scatter(x_sp, ts_i, s=2.0, alpha=0.4, color="tab:green")
+    ax.set_xlabel(xlab)
+    ax.set_ylabel("TS index")
+    ax.set_title("TS spikes vs x during test window")
+    ax.grid(alpha=0.25)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=180)
+    plt.close(fig)
+
+
+def save_mon_spikes_vs_x_test_figure(result: dict, out_path: Path):
+    """
+    Diagnostic scatter: MON index vs stimulus position x during the test window only.
+    """
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    p = result["params"]
+    sp_mon = result["sp_mon"]
+    test_sim = result["test_sim"]
+    train_duration_s = float(result["train_duration_s"])
+    test_duration_s = float(result["test_duration_s"])
+    t_test_end = train_duration_s + test_duration_s
+
+    x_test = np.asarray(test_sim["X_cm"], dtype=float)
+    dt = float(p.dt_s)
+
+    mon_t_abs = np.asarray(sp_mon.t / b2.second, dtype=float)
+    mon_i = np.asarray(sp_mon.i, dtype=int)
+
+    m = (mon_t_abs >= train_duration_s) & (mon_t_abs < t_test_end)
+    if not np.any(m):
+        fig, ax = plt.subplots(1, 1, figsize=(8, 4.2))
+        ax.text(0.5, 0.5, "No MON spikes during test", ha="center", va="center", transform=ax.transAxes, fontsize=12)
+        ax.set_xlabel("stimulus x (cm, linear)")
+        ax.set_ylabel("MON index")
+        ax.set_title("MON spikes vs x during test window")
+        ax.grid(alpha=0.25)
+        fig.tight_layout()
+        fig.savefig(out_path, dpi=180)
+        plt.close(fig)
+        return
+
+    mon_t_rel = mon_t_abs[m] - train_duration_s
+    mon_i = mon_i[m]
+
+    k = np.floor(mon_t_rel / dt).astype(int)
+    valid = (k >= 0) & (k < x_test.size) & (mon_i >= 0) & (mon_i < p.n_mon)
+    if not np.any(valid):
+        print("No valid MON spikes after time-to-index mapping")
+        return
+
+    x_sp = x_test[k[valid]]
+    mon_i = mon_i[valid]
+
+    w = _eval_window_cm(p)
+    if w is not None:
+        emin, emax = w
+        mwin = (x_sp >= emin) & (x_sp <= emax)
+        if not np.any(mwin):
+            fig, ax = plt.subplots(1, 1, figsize=(8, 4.2))
+            ax.text(
+                0.5,
+                0.5,
+                "No MON spikes in eval x window",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+                fontsize=12,
+            )
+            ax.set_xlabel(f"eval x [{emin:.3f},{emax:.3f}] cm (local)")
+            ax.set_ylabel("MON index")
+            ax.set_title("MON spikes vs x during test window")
+            ax.grid(alpha=0.25)
+            fig.tight_layout()
+            fig.savefig(out_path, dpi=180)
+            plt.close(fig)
+            return
+        x_sp = x_sp[mwin] - emin
+        mon_i = mon_i[mwin]
+        xlab = f"x in eval window (local 0 at {emin:.3f} cm)"
+    else:
+        xlab = "stimulus x (cm, linear)"
+
+    fig, ax = plt.subplots(1, 1, figsize=(8, 4.2))
+    ax.scatter(x_sp, mon_i, s=0.5, alpha=0.25, color="tab:purple")
+    ax.set_xlabel(xlab)
+    ax.set_ylabel("MON index")
+    ax.set_title("MON spikes vs x during test window")
+    ax.grid(alpha=0.25)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=180)
+    plt.close(fig)
+
+
+def save_mon_tuning_examples_figure(result: dict, out_path: Path, n_examples: int = 8):
+    """
+    Example MON neurons: firing rate vs position x during the test sweep.
+    """
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    p = result["params"]
+    sp_mon = result["sp_mon"]
+    tsim = result["test_sim"]
+    t_train = float(result["train_duration_s"])
+
+    t_test = np.asarray(tsim["t_s"], dtype=float)
+    x_test = np.asarray(tsim["X_cm"], dtype=float)
+
+    mon_t = np.asarray(sp_mon.t / b2.second, dtype=float)
+    mon_i = np.asarray(sp_mon.i, dtype=int)
+    mtest = (mon_t >= t_train) & (mon_t <= float(result["total_duration_s"]))
+    mon_t = mon_t[mtest] - t_train
+    mon_i = mon_i[mtest]
+
+    if mon_t.size == 0:
+        return
+
+    dt = float(max(p.dt_s, 1e-4))
+    n_t = t_test.size
+    rates = np.zeros((n_t, p.n_mon), dtype=float)
+    k = np.floor(mon_t / dt).astype(int)
+    valid = (k >= 0) & (k < n_t) & (mon_i >= 0) & (mon_i < p.n_mon)
+    if not np.any(valid):
+        return
+    np.add.at(rates, (k[valid], mon_i[valid]), 1.0 / dt)
+
+    n_pos_bins = min(40, n_t)
+    x_local, ok_t, x_edges, x_centers, xtag = _test_x_local_bins(x_test, p, n_pos_bins)
+    tuning = np.zeros((p.n_mon, n_pos_bins), dtype=float)
+    for b in range(n_pos_bins):
+        mb = ok_t & (x_local >= x_edges[b]) & (x_local < x_edges[b + 1])
+        if not np.any(mb):
+            continue
+        tuning[:, b] = rates[mb, :].mean(axis=0)
+
+    mon_indices = np.linspace(0, p.n_mon - 1, num=min(int(n_examples), p.n_mon), dtype=int)
+    fig, axes = plt.subplots(len(mon_indices), 1, figsize=(8, 2.0 * len(mon_indices)), sharex=True)
+    if len(mon_indices) == 1:
+        axes = [axes]
+    for ax, j in zip(axes, mon_indices):
+        ax.plot(x_centers, tuning[j, :], "-o", ms=3, color="tab:purple")
+        ax.set_ylabel(f"MON {j}")
+        ax.grid(alpha=0.3)
+    axes[-1].set_xlabel(f"position x during test ({xtag})")
+    fig.suptitle("MON tuning curves vs x (test sweep, examples)", y=1.02)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=180)
+    plt.close(fig)
+
+
+def save_mon_ts_feedforward_drive_figures(result: dict, heatmap_path: Path, winner_path: Path):
+    """
+    Diagnostic: estimated MON->TS feedforward drive during test per x-bin.
+    For each x-bin b and synapse (i->j, w): contribution += spike_count_MON[i,b] * w * mon_ts_gain_mV.
+    """
+    heatmap_path.parent.mkdir(parents=True, exist_ok=True)
+
+    p = result["params"]
+    w = np.asarray(result["w_after"], dtype=float)
+    i_mon = np.asarray(result["mon_to_ts_i"], dtype=int)
+    j_ts = np.asarray(result["mon_to_ts_j"], dtype=int)
+    if w.size == 0 or w.size != i_mon.size or w.size != j_ts.size:
+        return
+
+    test_sim = result["test_sim"]
+    sp_mon = result["sp_mon"]
+    t_train = float(result["train_duration_s"])
+    t_test_end = float(result["train_duration_s"] + result["test_duration_s"])
+    x_test = np.asarray(test_sim["X_cm"], dtype=float)
+    t_test = np.asarray(test_sim["t_s"], dtype=float)
+    n_t = int(t_test.size)
+    dt = float(max(p.dt_s, 1e-4))
+
+    n_pos_bins = min(40, n_t)
+    x_local_series, ok_t, x_edges, x_centers, xtag = _test_x_local_bins(x_test, p, n_pos_bins)
+
+    spike_count = np.zeros((p.n_mon, n_pos_bins), dtype=float)
+    mon_t_abs = np.asarray(sp_mon.t / b2.second, dtype=float)
+    mon_i = np.asarray(sp_mon.i, dtype=int)
+    m = (mon_t_abs >= t_train) & (mon_t_abs < t_test_end)
+    mon_t_abs = mon_t_abs[m]
+    mon_i = mon_i[m]
+    if mon_t_abs.size > 0:
+        mon_t_rel = mon_t_abs - t_train
+        k = np.floor(mon_t_rel / dt).astype(int)
+        k = np.clip(k, 0, n_t - 1)
+        x_loc = x_local_series[k]
+        bin_idx = np.searchsorted(x_edges, x_loc, side="right") - 1
+        bin_idx = np.clip(bin_idx, 0, n_pos_bins - 1)
+        valid = (mon_i >= 0) & (mon_i < p.n_mon) & ok_t[k]
+        np.add.at(spike_count, (mon_i[valid], bin_idx[valid]), 1.0)
+
+    g = float(p.mon_ts_gain_mV)
+    n_ts = int(p.n_ts)
+    drive = np.zeros((n_ts, n_pos_bins), dtype=float)
+    for s in range(w.size):
+        drive[j_ts[s], :] += spike_count[i_mon[s], :] * float(w[s]) * g
+
+    fig, ax = plt.subplots(1, 1, figsize=(10, 6))
+    vmax = float(np.max(drive)) if drive.size else 1.0
+    vmax = max(vmax, 1e-12)
+    im = ax.imshow(
+        drive,
+        aspect="auto",
+        origin="lower",
+        extent=(x_edges[0], x_edges[-1], -0.5, n_ts - 0.5),
+        interpolation="nearest",
+        cmap="viridis",
+        vmin=0.0,
+        vmax=vmax,
+    )
+    ax.set_xlabel(f"x during test ({xtag})")
+    ax.set_ylabel("TS index")
+    ax.set_title("MON→TS feedforward drive (test, Σ_i spikes_i·w_ij·gain)")
+    plt.colorbar(im, ax=ax, label="drive (mV · spike count per bin)")
+    fig.tight_layout()
+    fig.savefig(heatmap_path, dpi=180)
+    plt.close(fig)
+
+    winner = np.argmax(drive, axis=0).astype(int)
+    fig2, ax2 = plt.subplots(1, 1, figsize=(10, 4.2))
+    ax2.plot(x_centers, winner, "o-", ms=4, color="tab:green")
+    ax2.set_xlabel(f"x during test ({xtag})")
+    ax2.set_ylabel("winning TS index (max drive)")
+    ax2.set_title("MON→TS feedforward drive winner vs x (test)")
+    ax2.set_ylim(-0.5, n_ts - 0.5)
+    ax2.grid(alpha=0.3)
+    fig2.tight_layout()
+    fig2.savefig(winner_path, dpi=180)
+    plt.close(fig2)
 
 
 def save_multiseed_summary(results: list[dict], out_path: Path):
@@ -1324,6 +2058,12 @@ def main():
         help="Folder where learned weights/connectivity snapshots are stored.",
     )
     parser.add_argument(
+        "--run-name",
+        type=str,
+        default=None,
+        help="Name for this run under Runs/<name>/ (default: timestamp). Figures and artifacts go in subfolders.",
+    )
+    parser.add_argument(
         "--save-tag",
         type=str,
         default="latest",
@@ -1340,6 +2080,12 @@ def main():
         type=int,
         default=123,
         help="Starting seed for multi-seed runs.",
+    )
+    parser.add_argument(
+        "--n-ll",
+        type=int,
+        default=None,
+        help="Override number of LL (afferent) neurons. Scale proportionally with --ll-body-length-cm (e.g. 175 for 7 cm body).",
     )
     parser.add_argument(
         "--n-training-trials",
@@ -1364,6 +2110,32 @@ def main():
         type=float,
         default=None,
         help="Override maximum training distance (cm) for snapshot sampling.",
+    )
+    parser.add_argument(
+        "--ll-body-length-cm",
+        type=float,
+        default=None,
+        help="Physical length of the lateral line / fish body axis (cm). Default 4.0. Set to e.g. 7.0 to reduce boundary effects; use --eval-x-* to evaluate only the middle.",
+    )
+    parser.add_argument(
+        "--test-path-cm",
+        type=float,
+        default=None,
+        help="Length of linear test sweep along x (cm); use > neuromast span (e.g. 7) with --eval-x-* for center window.",
+    )
+    parser.add_argument(
+        "--eval-x-min",
+        type=float,
+        default=None,
+        dest="eval_x_min_cm",
+        help="With --eval-x-max: restrict PV and test x-plots to physical x in [min, max] (cm, linear).",
+    )
+    parser.add_argument(
+        "--eval-x-max",
+        type=float,
+        default=None,
+        dest="eval_x_max_cm",
+        help="With --eval-x-min: upper bound (cm) of evaluation window.",
     )
     parser.add_argument(
         "--ll-mon-topo",
@@ -1424,6 +2196,24 @@ def main():
         type=float,
         default=None,
         help="Override LL->MON initial mean weight (mV) when STDP is enabled.",
+    )
+    parser.add_argument(
+        "--ll-mon-homeo-eta",
+        type=float,
+        default=None,
+        help="Override LL->MON homeostatic scaling strength (per incoming-weight target).",
+    )
+    parser.add_argument(
+        "--ll-mon-homeo-every-trials",
+        type=int,
+        default=None,
+        help="Override LL->MON homeostasis period in training trials (every N trials).",
+    )
+    parser.add_argument(
+        "--mon-ts-homeo-eta",
+        type=float,
+        default=None,
+        help="Override MON->TS homeostatic scaling strength (per incoming-weight target).",
     )
     parser.add_argument(
         "--mon-ts-sigma",
@@ -1502,18 +2292,58 @@ def main():
         default=None,
         help="Override TS background synaptic weight (mV).",
     )
+    parser.add_argument(
+        "--keep-mon-ts-stdp-during-test",
+        action="store_true",
+        help="If set, do not zero MON->TS STDP (Apre/Apost) before the test phase.",
+    )
+    parser.add_argument(
+        "--test-using-held-snapshots",
+        action="store_true",
+        help="If set, test phase uses held snapshots (same position sampling as training) for the same duration as the default continuous test.",
+    )
+    parser.add_argument(
+        "--disable-all-stdp",
+        action="store_true",
+        help="No-learning control: set LL->MON and MON->TS STDP (Apre/Apost) to zero.",
+    )
+    parser.add_argument(
+        "--eval-x-min-cm",
+        type=float,
+        default=None,
+        help="Start of evaluation window along the fish body axis (cm). Must be set together with --eval-x-max-cm.",
+    )
+    parser.add_argument(
+        "--eval-x-max-cm",
+        type=float,
+        default=None,
+        help="End of evaluation window along the fish body axis (cm). Must be set together with --eval-x-min-cm.",
+    )
     args = parser.parse_args()
+    if (args.eval_x_min_cm is not None) ^ (args.eval_x_max_cm is not None):
+        parser.error("--eval-x-min and --eval-x-max must be given together")
+    if args.eval_x_min_cm is not None and float(args.eval_x_max_cm) <= float(args.eval_x_min_cm):
+        parser.error("--eval-x-max must be greater than --eval-x-min")
 
     params = apply_model_mode(NetworkParams(), args.mode)
     override = {"seed": args.seed_start}
+    if args.n_ll is not None:
+        override["n_ll"] = max(1, int(args.n_ll))
     if args.n_training_trials is not None:
-        override["n_training_trials"] = max(1, int(args.n_training_trials))
+        override["n_training_trials"] = max(0, int(args.n_training_trials))
     if args.distance_cm is not None:
         override["distance_cm"] = float(max(1e-6, args.distance_cm))
     if args.training_distance_min_cm is not None:
         override["training_distance_min_cm"] = float(max(0.0, args.training_distance_min_cm))
     if args.training_distance_max_cm is not None:
         override["training_distance_max_cm"] = float(max(0.0, args.training_distance_max_cm))
+    if args.ll_body_length_cm is not None:
+        override["ll_body_length_cm"] = float(max(0.1, args.ll_body_length_cm))
+    if args.test_path_cm is not None:
+        override["test_path_cm"] = float(max(1e-9, args.test_path_cm))
+    if args.eval_x_min_cm is not None:
+        override["eval_x_min_cm"] = float(args.eval_x_min_cm)
+        override["eval_x_max_cm"] = float(args.eval_x_max_cm)
     if args.ll_mon_topo is not None:
         override["ll_to_mon_topography_strength"] = float(max(0.0, args.ll_mon_topo))
     if args.mon_ts_topo is not None:
@@ -1550,6 +2380,12 @@ def main():
         override["ll_mon_wmax_mV"] = float(max(0.0, args.ll_mon_wmax_mv))
     if args.ll_mon_w_init_mv is not None:
         override["ll_mon_w_init_mV"] = float(max(0.0, args.ll_mon_w_init_mv))
+    if args.ll_mon_homeo_eta is not None:
+        override["ll_mon_homeo_eta"] = float(args.ll_mon_homeo_eta)
+    if args.ll_mon_homeo_every_trials is not None:
+        override["ll_mon_homeo_every_trials"] = int(max(1, args.ll_mon_homeo_every_trials))
+    if args.mon_ts_homeo_eta is not None:
+        override["mon_ts_homeo_eta"] = float(args.mon_ts_homeo_eta)
     if bool(args.use_ts_feedback_inh):
         override["use_ts_feedback_inh"] = True
     if args.ts_feedback_drive_mv is not None:
@@ -1560,58 +2396,206 @@ def main():
         override["ts_to_global_inh_p"] = float(np.clip(args.ts_feedback_p, 0.0, 1.0))
     if args.mon_global_inh_mv is not None:
         override["global_inh_to_mon_mV"] = float(max(0.0, args.mon_global_inh_mv))
+    if bool(args.keep_mon_ts_stdp_during_test):
+        override["keep_mon_ts_stdp_during_test"] = True
+    if bool(args.test_using_held_snapshots):
+        override["test_using_held_snapshots"] = True
+    if bool(args.disable_all_stdp):
+        override["ll_mon_apre"] = 0.0
+        override["ll_mon_apost"] = 0.0
+        override["mon_ts_apre"] = 0.0
+        override["mon_ts_apost"] = 0.0
     params = replace(params, **override)
 
-    results = []
     n_runs = max(1, args.multi_seed)
+    run_folder_name = (
+        str(args.run_name).strip().replace("/", "_").replace("\\", "_")
+        if args.run_name and str(args.run_name).strip()
+        else datetime.now().strftime("%Y%m%d_%H%M%S")
+    )
+    if not run_folder_name:
+        run_folder_name = datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_dir = Path("Runs") / run_folder_name
+    figures_dir = run_dir / "figures"
+    artifacts_dir = run_dir / "artifacts"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    with (run_dir / "params.json").open("w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "mode": args.mode,
+                "seed_start": args.seed_start,
+                "multi_seed": n_runs,
+                "run_folder": run_folder_name,
+                "network_params": asdict(params),
+            },
+            f,
+            indent=2,
+        )
+    print(f"Run directory: {run_dir.resolve()}")
+
+    results = []
     for k in range(n_runs):
         p_run = replace(params, seed=args.seed_start + k)
         r = run_spatial_two_stage_model(p_run)
         results.append(r)
 
-        output = Path("Picture") / (
+        output = figures_dir / (
             f"brian2_spatial_two_stage_u_{p_run.speed_cm_s:.1f}_nMON_{p_run.n_mon}_nTS_{p_run.n_ts}_seed_{p_run.seed}.png"
         )
         save_summary_figure(r, output)
-        curves_out = Path("Picture") / (
+        test_only_out = figures_dir / (
+            f"brian2_test_phase_only_u_{p_run.speed_cm_s:.1f}_nMON_{p_run.n_mon}_nTS_{p_run.n_ts}_seed_{p_run.seed}.png"
+        )
+        save_test_phase_only_figure(r, test_only_out)
+        curves_out = figures_dir / (
             f"brian2_learning_curves_u_{p_run.speed_cm_s:.1f}_nMON_{p_run.n_mon}_nTS_{p_run.n_ts}_seed_{p_run.seed}.png"
         )
         save_learning_curves_figure(r, curves_out)
-        llmon_out = Path("Picture") / (
+        llmon_out = figures_dir / (
             f"brian2_llmon_weights_u_{p_run.speed_cm_s:.1f}_nMON_{p_run.n_mon}_nTS_{p_run.n_ts}_seed_{p_run.seed}.png"
         )
         save_ll_mon_weights_figure(r, llmon_out)
-        ts_tuning_out = Path("Picture") / (
+        ts_tuning_out = figures_dir / (
             f"brian2_ts_tuning_u_{p_run.speed_cm_s:.1f}_nMON_{p_run.n_mon}_nTS_{p_run.n_ts}_seed_{p_run.seed}.png"
         )
         save_ts_tuning_figure(r, ts_tuning_out)
-        artifacts_dir = Path(args.save_weights_dir)
+        mon_ts_prof = figures_dir / (
+            f"brian2_mon_ts_weight_profile_u_{p_run.speed_cm_s:.1f}_nMON_{p_run.n_mon}_nTS_{p_run.n_ts}_seed_{p_run.seed}.png"
+        )
+        save_mon_to_ts_weight_profile(r, mon_ts_prof)
+        mon_ts_rf = figures_dir / (
+            f"brian2_mon_to_ts_receptive_fields_u_{p_run.speed_cm_s:.1f}_nMON_{p_run.n_mon}_nTS_{p_run.n_ts}_seed_{p_run.seed}.png"
+        )
+        save_mon_to_ts_receptive_fields_figure(r, mon_ts_rf)
+        ts_vs_x_out = figures_dir / (
+            f"brian2_ts_spikes_vs_x_test_u_{p_run.speed_cm_s:.1f}_nMON_{p_run.n_mon}_nTS_{p_run.n_ts}_seed_{p_run.seed}.png"
+        )
+        save_ts_spikes_vs_x_test_figure(r, ts_vs_x_out)
+        mon_vs_x_out = figures_dir / (
+            f"brian2_mon_spikes_vs_x_test_u_{p_run.speed_cm_s:.1f}_nMON_{p_run.n_mon}_nTS_{p_run.n_ts}_seed_{p_run.seed}.png"
+        )
+        save_mon_spikes_vs_x_test_figure(r, mon_vs_x_out)
+        mon_tune_ex_out = figures_dir / (
+            f"brian2_mon_tuning_examples_u_{p_run.speed_cm_s:.1f}_nMON_{p_run.n_mon}_nTS_{p_run.n_ts}_seed_{p_run.seed}.png"
+        )
+        save_mon_tuning_examples_figure(r, mon_tune_ex_out)
+        mon_ts_drive_hm = figures_dir / (
+            f"brian2_mon_ts_drive_heatmap_u_{p_run.speed_cm_s:.1f}_nMON_{p_run.n_mon}_nTS_{p_run.n_ts}_seed_{p_run.seed}.png"
+        )
+        mon_ts_drive_win = figures_dir / (
+            f"brian2_mon_ts_drive_winner_u_{p_run.speed_cm_s:.1f}_nMON_{p_run.n_mon}_nTS_{p_run.n_ts}_seed_{p_run.seed}.png"
+        )
+        save_mon_ts_feedforward_drive_figures(r, mon_ts_drive_hm, mon_ts_drive_win)
+        ts_tr_out = figures_dir / (
+            f"brian2_ts_pop_rate_train_test_transition_u_{p_run.speed_cm_s:.1f}_nMON_{p_run.n_mon}_nTS_{p_run.n_ts}_seed_{p_run.seed}.png"
+        )
+        save_ts_pop_rate_train_test_transition_figure(r, ts_tr_out)
         weights_path, params_path = save_learning_artifacts(r, artifacts_dir, f"{args.save_tag}_seed_{p_run.seed}")
         print(f"Seed {p_run.seed} saved figure: {output}")
+        print(f"Seed {p_run.seed} saved test-phase-only figure: {test_only_out}")
         print(f"Seed {p_run.seed} saved learning curves: {curves_out}")
         print(f"Seed {p_run.seed} saved LL->MON weights figure: {llmon_out}")
+        print(f"Seed {p_run.seed} saved MON->TS weight profile: {mon_ts_prof}")
+        print(f"Seed {p_run.seed} saved MON->TS receptive fields: {mon_ts_rf}")
+        print(f"Seed {p_run.seed} saved TS spikes vs x (test): {ts_vs_x_out}")
+        print(f"Seed {p_run.seed} saved MON spikes vs x (test): {mon_vs_x_out}")
+        print(f"Seed {p_run.seed} saved MON tuning examples (test): {mon_tune_ex_out}")
+        print(f"Seed {p_run.seed} saved MON→TS drive heatmap (test): {mon_ts_drive_hm}")
+        print(f"Seed {p_run.seed} saved MON→TS drive winner (test): {mon_ts_drive_win}")
+        print(f"Seed {p_run.seed} saved TS pop rate train→test: {ts_tr_out}")
         print(f"Seed {p_run.seed} saved weights: {weights_path}")
         print(f"Seed {p_run.seed} saved params: {params_path}")
 
     result = results[0]
-    output = Path("Picture") / f"brian2_spatial_two_stage_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
+    output = figures_dir / f"brian2_spatial_two_stage_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
     save_summary_figure(result, output)
-    curves_out = Path("Picture") / f"brian2_learning_curves_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
+    test_only_out = figures_dir / (
+        f"brian2_test_phase_only_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
+    )
+    save_test_phase_only_figure(result, test_only_out)
+    curves_out = figures_dir / f"brian2_learning_curves_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
     save_learning_curves_figure(result, curves_out)
-    llmon_out = Path("Picture") / f"brian2_llmon_weights_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
+    llmon_out = figures_dir / f"brian2_llmon_weights_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
     save_ll_mon_weights_figure(result, llmon_out)
-    ts_tuning_out = Path("Picture") / (
+    ts_tuning_out = figures_dir / (
         f"brian2_ts_tuning_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
     )
     save_ts_tuning_figure(result, ts_tuning_out)
+    mon_ts_prof = figures_dir / (
+        f"brian2_mon_ts_weight_profile_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
+    )
+    save_mon_to_ts_weight_profile(result, mon_ts_prof)
+    mon_ts_rf = figures_dir / (
+        f"brian2_mon_to_ts_receptive_fields_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
+    )
+    save_mon_to_ts_receptive_fields_figure(result, mon_ts_rf)
+    ts_vs_x_out = figures_dir / (
+        f"brian2_ts_spikes_vs_x_test_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
+    )
+    save_ts_spikes_vs_x_test_figure(result, ts_vs_x_out)
+    mon_vs_x_out = figures_dir / (
+        f"brian2_mon_spikes_vs_x_test_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
+    )
+    save_mon_spikes_vs_x_test_figure(result, mon_vs_x_out)
+    mon_tune_ex_out = figures_dir / (
+        f"brian2_mon_tuning_examples_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
+    )
+    save_mon_tuning_examples_figure(result, mon_tune_ex_out)
+    mon_ts_drive_hm = figures_dir / (
+        f"brian2_mon_ts_drive_heatmap_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
+    )
+    mon_ts_drive_win = figures_dir / (
+        f"brian2_mon_ts_drive_winner_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
+    )
+    save_mon_ts_feedforward_drive_figures(result, mon_ts_drive_hm, mon_ts_drive_win)
+    ts_tr_out = figures_dir / (
+        f"brian2_ts_pop_rate_train_test_transition_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
+    )
+    save_ts_pop_rate_train_test_transition_figure(result, ts_tr_out)
     if args.mode == "ll_thesis":
-        latest_plot = Path("Picture") / "LL_THESIS_BASELINE_ACTIVE_latest.png"
+        latest_plot = figures_dir / "LL_THESIS_BASELINE_ACTIVE_latest.png"
         latest_plot.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(output, latest_plot)
+        latest_test = figures_dir / "LL_THESIS_BASELINE_TEST_ONLY_latest.png"
+        shutil.copy2(test_only_out, latest_test)
     if n_runs > 1:
-        multi_out = Path("Picture") / f"brian2_multiseed_summary_n{n_runs}.png"
+        multi_out = figures_dir / f"brian2_multiseed_summary_n{n_runs}.png"
         save_multiseed_summary(results, multi_out)
         print(f"Saved multiseed summary: {multi_out}")
+
+    summary = {
+        "ll_mon_topo": float(params.ll_to_mon_topography_strength),
+        "mon_ts_topo": float(params.mon_to_ts_topography_strength),
+        "mon_ts_sigma": float(params.mon_to_ts_sigma),
+        "mon_ts_gain_mV": float(params.mon_ts_gain_mV),
+    }
+    per = []
+    for r in results:
+        ts_t_abs = np.asarray(r["sp_ts"].t / b2.second, dtype=float)
+        t0 = float(r["train_duration_s"])
+        t1 = float(r["train_duration_s"] + r["test_duration_s"])
+        n_ts_test = int(np.sum((ts_t_abs >= t0) & (ts_t_abs < t1)))
+        per.append(
+            {
+                "seed": int(r["params"].seed),
+                "ts_spikes_during_test_window": n_ts_test,
+                "pv_map_quality": {
+                    "sigma_theta_rad": float(r["pv_sigma_theta"]),
+                    "delta_trial_rad": float(r["pv_delta_trial"]),
+                    "valid_fraction": float(r["pv_valid_fraction"]),
+                },
+            }
+        )
+    if n_runs == 1:
+        summary["seed"] = per[0]["seed"]
+        summary["ts_spikes_during_test_window"] = per[0]["ts_spikes_during_test_window"]
+        summary["pv_map_quality"] = per[0]["pv_map_quality"]
+    else:
+        summary["runs"] = per
+    with (run_dir / "run_summary.json").open("w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=2)
 
     print(f"Mode: {args.mode}")
     print(
@@ -1627,9 +2611,19 @@ def main():
         f"ll_rate_gain={params.ll_rate_gain}"
     )
     print(f"Saved: {output}")
+    print(f"Saved test-phase-only figure: {test_only_out}")
+    print(f"Saved MON->TS weight profile: {mon_ts_prof}")
+    print(f"Saved MON->TS receptive fields: {mon_ts_rf}")
+    print(f"Saved TS spikes vs x (test): {ts_vs_x_out}")
+    print(f"Saved MON spikes vs x (test): {mon_vs_x_out}")
+    print(f"Saved MON tuning examples (test): {mon_tune_ex_out}")
+    print(f"Saved MON→TS drive heatmap (test): {mon_ts_drive_hm}")
+    print(f"Saved MON→TS drive winner (test): {mon_ts_drive_win}")
+    print(f"Saved TS pop rate train→test: {ts_tr_out}")
     print(f"Saved learning curves: {curves_out}")
     if args.mode == "ll_thesis":
-        print(f"Saved latest copy: {Path('Picture') / 'LL_THESIS_BASELINE_ACTIVE_latest.png'}")
+        print(f"Saved latest copy: {figures_dir / 'LL_THESIS_BASELINE_ACTIVE_latest.png'}")
+        print(f"Saved latest test-only copy: {figures_dir / 'LL_THESIS_BASELINE_TEST_ONLY_latest.png'}")
     if n_runs == 1:
         print(f"Spikes: LL={result['sp_ll'].num_spikes}, MON={result['sp_mon'].num_spikes}, TS={result['sp_ts'].num_spikes}")
         ts_t_abs = np.asarray(result["sp_ts"].t / b2.second, dtype=float)
@@ -1668,6 +2662,7 @@ def main():
         f"delta_trial={result['pv_delta_trial']:.4f} rad, "
         f"valid_fraction={result['pv_valid_fraction']:.3f}"
     )
+    print(f"Run directory: {run_dir.resolve()}")
 
 
 if __name__ == "__main__":
