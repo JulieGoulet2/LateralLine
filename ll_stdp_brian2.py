@@ -38,6 +38,7 @@ class NetworkParams:
     n_training_trials: int = 200
     checkpoint_trials: int = 10
     pv_eval_every_checkpoints: int = 2
+    checkpoint_save_every_n_checkpoints: int = 10
 
     # During training, one random snapshot is held for this duration.
     training_position_hold_s: float = 0.05
@@ -109,7 +110,7 @@ class NetworkParams:
     ll_mon_w_init_mV: float = 10.0
     ll_mon_w_jitter_stdp_mV: float = 2.0
     # Homeostatic normalization of incoming LL->MON weights (per MON neuron).
-    ll_mon_homeo_eta: float = 0.02
+    ll_mon_homeo_eta: float = 0.0
     ll_mon_homeo_every_trials: int = 10
 
     # MON -> TS: random + weak somatotopy (distillation stage in space).
@@ -127,7 +128,7 @@ class NetworkParams:
     mon_ts_w_init: float = 0.020
     mon_ts_w_jitter: float = 0.010
     # Homeostatic normalization of incoming MON->TS weights (per TS neuron).
-    mon_ts_homeo_eta: float = 0.02
+    mon_ts_homeo_eta: float = 0.0
     mon_ts_homeo_every_trials: int = 10
 
     # Scale from dimensionless weight to PSP size in mV.
@@ -190,8 +191,6 @@ def apply_model_mode(params: NetworkParams, mode: str) -> NetworkParams:
             mon_ts_wmax=0.028,
             mon_ts_w_init=0.020,
             mon_ts_w_jitter=0.005,
-            mon_ts_homeo_eta=0.02,
-            mon_ts_homeo_every_trials=10,
             ll_mon_w_mean_mV=11.5,
             ll_to_mon_in_degree=10,
             ll_to_mon_topography_strength=0.08,
@@ -770,15 +769,55 @@ def estimate_stabilization_time(epoch_t_s: np.ndarray, w_mean_series: np.ndarray
 
 
 # ---------------------------------------------------------
+# Mid-run checkpoint helpers
+# ---------------------------------------------------------
+def _save_mid_checkpoint(ckpt_path, actual_trial_idx, s_mon_ts, ll_mon_use_stdp, s_ll_mon, stats):
+    data = {"trial_idx": np.array(actual_trial_idx)}
+    data["mon_ts_w"] = np.array(s_mon_ts.w[:], dtype=float, copy=True)
+    if ll_mon_use_stdp:
+        data["ll_mon_w_mV"] = np.array(s_ll_mon.w[:] / b2.mV, dtype=float, copy=True)
+    for key, val in stats.items():
+        data[key] = np.asarray(val)
+    np.savez_compressed(str(ckpt_path), **data)
+    print(f"[checkpoint] saved trial {actual_trial_idx} → {ckpt_path.name}", flush=True)
+
+
+def _load_mid_checkpoint(run_dir):
+    path = Path(run_dir) / "artifacts" / "mid_checkpoint.npz"
+    if not path.exists():
+        return None
+    raw = np.load(str(path), allow_pickle=False)
+    ckpt = {k: raw[k] for k in raw.files}
+    print(f"[checkpoint] resuming from trial {int(ckpt['trial_idx'])}", flush=True)
+    return ckpt
+
+
+# ---------------------------------------------------------
 # Single-training pipeline (no temporal phase split)
 # ---------------------------------------------------------
-def run_spatial_two_stage_model(params: NetworkParams):
+def run_spatial_two_stage_model(params: NetworkParams, checkpoint_path=None, resume_checkpoint=None):
     # Build training and test stimuli.
     train_rates, train_samples, train_x_cm = make_training_rates(params)
     test_sim = make_test_rates_held_snapshots(params) if bool(params.test_using_held_snapshots) else make_test_rates(params)
     test_rates = test_sim["rates_hz"]
 
-    # Concatenate training + test in one TimedArray.
+    # If resuming, drop already-completed trials from the stimulus.
+    trial_steps = int(np.round(params.trial_duration_s / params.dt_s))
+    k_start = 0
+    if resume_checkpoint is not None:
+        k_start = int(resume_checkpoint["trial_idx"]) + 1
+        if k_start >= params.n_training_trials:
+            raise ValueError(
+                f"Checkpoint trial {k_start - 1} >= n_training_trials {params.n_training_trials}; nothing left to run."
+            )
+        skip_steps = k_start * trial_steps
+        train_rates = train_rates[skip_steps:]
+        train_x_cm = train_x_cm[skip_steps:]
+        print(f"[resume] skipping {k_start} completed trials, {params.n_training_trials - k_start} remaining.", flush=True)
+
+    remaining_training_trials = params.n_training_trials - k_start
+
+    # Concatenate (remaining) training + test in one TimedArray.
     rates_all = np.vstack([train_rates, test_rates])
     baseline_subtract_hz = float(max(0.0, params.ll_rate_baseline_subtract_hz))
     if params.ll_rate_mode == "modulation":
@@ -787,7 +826,7 @@ def run_spatial_two_stage_model(params: NetworkParams):
         raise ValueError(f"Unknown ll_rate_mode '{params.ll_rate_mode}'. Use 'raw' or 'modulation'.")
     rates_all = np.clip((rates_all - baseline_subtract_hz) * float(max(0.0, params.ll_rate_gain)), 0.0, None)
 
-    train_duration_s = params.n_training_trials * params.trial_duration_s
+    train_duration_s = remaining_training_trials * params.trial_duration_s
     test_duration_s = float(test_sim["t_s"][-1] + params.dt_s)
     total_duration_s = train_duration_s + test_duration_s
 
@@ -985,33 +1024,53 @@ def run_spatial_two_stage_model(params: NetworkParams):
     ll_j = np.array(s_ll_mon.j[:], dtype=int, copy=True)
     ll_w_mV = np.array(s_ll_mon.w[:] / b2.mV, dtype=float, copy=True)
 
-    # Save MON->TS initial state.
+    # Restore weights from checkpoint if resuming.
+    if resume_checkpoint is not None:
+        print("[resume] restoring weights from checkpoint ...", flush=True)
+        s_mon_ts.w = resume_checkpoint["mon_ts_w"]
+        if params.ll_mon_use_stdp and "ll_mon_w_mV" in resume_checkpoint:
+            s_ll_mon.w = resume_checkpoint["ll_mon_w_mV"] * b2.mV
+        print("[resume] weights restored.", flush=True)
+
+    # Save MON->TS initial state (after any weight restore).
     w_before = np.array(s_mon_ts.w[:], dtype=float, copy=True)
 
-    # Checkpoint records.
+    # Checkpoint records — prepopulate from saved state if resuming.
     rng = np.random.default_rng(params.seed + 777)
     tracked_n = min(24, w_before.size)
     tracked_idx = rng.choice(w_before.size, size=tracked_n, replace=False)
 
-    checkpoint_t_s = [0.0]
-    w_mean_series = [float(np.mean(w_before))]
-    w_std_series = [float(np.std(w_before))]
-    tracked_weight_series = [w_before[tracked_idx].copy()]
-    w_mean_abs_delta_series = [0.0]
-    w_frac_delta_gt_1e3_series = [0.0]
+    if resume_checkpoint is not None and "checkpoint_t_s" in resume_checkpoint:
+        checkpoint_t_s = list(resume_checkpoint["checkpoint_t_s"])
+        w_mean_series = list(resume_checkpoint["w_mean_series"])
+        w_std_series = list(resume_checkpoint["w_std_series"])
+        tracked_weight_series = list(resume_checkpoint["tracked_weight_series"])
+        w_mean_abs_delta_series = list(resume_checkpoint["w_mean_abs_delta_series"])
+        w_frac_delta_gt_1e3_series = list(resume_checkpoint["w_frac_delta_gt_1e3_series"])
+        ts_ckpt_rate_series = list(resume_checkpoint.get("ts_ckpt_rate_series", np.array([])))
+        pv_ckpt_t_s = list(resume_checkpoint.get("pv_ckpt_t_s", np.array([])))
+        pv_sigma_theta_series = list(resume_checkpoint.get("pv_sigma_theta_series", np.array([])))
+        pv_delta_trial_series = list(resume_checkpoint.get("pv_delta_trial_series", np.array([])))
+    else:
+        checkpoint_t_s = [0.0]
+        w_mean_series = [float(np.mean(w_before))]
+        w_std_series = [float(np.std(w_before))]
+        tracked_weight_series = [w_before[tracked_idx].copy()]
+        w_mean_abs_delta_series = [0.0]
+        w_frac_delta_gt_1e3_series = [0.0]
+        ts_ckpt_rate_series = []
+        pv_ckpt_t_s = []
+        pv_sigma_theta_series = []
+        pv_delta_trial_series = []
 
-    ts_ckpt_rate_series = []
-    pv_ckpt_t_s = []
-    pv_sigma_theta_series = []
-    pv_delta_trial_series = []
     last_ckpt_t = 0.0
     last_ts_spike_count = 0
 
     # Training loop (single phase, STDP active on LL->MON (optional) and MON->TS).
-    for k in range(params.n_training_trials):
+    for k in range(remaining_training_trials):
         b2.run(params.trial_duration_s * b2.second)
 
-        if (k + 1) % max(1, params.checkpoint_trials) == 0 or (k + 1) == params.n_training_trials:
+        if (k + 1) % max(1, params.checkpoint_trials) == 0 or (k + 1) == remaining_training_trials:
             wk = np.array(s_mon_ts.w[:], dtype=float, copy=True)
             t_cur = (k + 1) * params.trial_duration_s
 
@@ -1059,6 +1118,25 @@ def run_spatial_two_stage_model(params: NetworkParams):
             dwk = np.abs(wk - w_before)
             w_mean_abs_delta_series.append(float(np.mean(dwk)))
             w_frac_delta_gt_1e3_series.append(float(np.mean(dwk > 1e-3)))
+
+            # Periodic weight save to disk so a crash can be resumed.
+            ckpt_count = len(checkpoint_t_s) - 1  # exclude the t=0 entry
+            every_n = max(1, int(params.checkpoint_save_every_n_checkpoints))
+            if checkpoint_path is not None and ckpt_count > 0 and ckpt_count % every_n == 0:
+                actual_trial = k + k_start
+                stats_snap = {
+                    "checkpoint_t_s": np.asarray(checkpoint_t_s),
+                    "w_mean_series": np.asarray(w_mean_series),
+                    "w_std_series": np.asarray(w_std_series),
+                    "tracked_weight_series": np.asarray(tracked_weight_series),
+                    "w_mean_abs_delta_series": np.asarray(w_mean_abs_delta_series),
+                    "w_frac_delta_gt_1e3_series": np.asarray(w_frac_delta_gt_1e3_series),
+                    "ts_ckpt_rate_series": np.asarray(ts_ckpt_rate_series),
+                    "pv_ckpt_t_s": np.asarray(pv_ckpt_t_s),
+                    "pv_sigma_theta_series": np.asarray(pv_sigma_theta_series),
+                    "pv_delta_trial_series": np.asarray(pv_delta_trial_series),
+                }
+                _save_mid_checkpoint(checkpoint_path, actual_trial, s_mon_ts, params.ll_mon_use_stdp, s_ll_mon, stats_snap)
 
         # LL->MON homeostasis (if enabled) every ll_mon_homeo_every_trials.
         if params.ll_mon_use_stdp and params.ll_mon_homeo_eta > 0.0 and (
@@ -2198,6 +2276,12 @@ def main():
         help="Override LL->MON initial mean weight (mV) when STDP is enabled.",
     )
     parser.add_argument(
+        "--ll-mon-w-jitter-stdp-mv",
+        type=float,
+        default=None,
+        help="Override LL->MON initial weight jitter (mV) when STDP is enabled.",
+    )
+    parser.add_argument(
         "--ll-mon-homeo-eta",
         type=float,
         default=None,
@@ -2319,6 +2403,15 @@ def main():
         default=None,
         help="End of evaluation window along the fish body axis (cm). Must be set together with --eval-x-min-cm.",
     )
+    parser.add_argument(
+        "--resume-from",
+        type=str,
+        default=None,
+        help=(
+            "Path to a run directory to resume from (e.g. Runs/stdp_topo02_with_20260426_082031). "
+            "Loads artifacts/mid_checkpoint.npz and continues training from the saved trial."
+        ),
+    )
     args = parser.parse_args()
     if (args.eval_x_min_cm is not None) ^ (args.eval_x_max_cm is not None):
         parser.error("--eval-x-min and --eval-x-max must be given together")
@@ -2380,6 +2473,8 @@ def main():
         override["ll_mon_wmax_mV"] = float(max(0.0, args.ll_mon_wmax_mv))
     if args.ll_mon_w_init_mv is not None:
         override["ll_mon_w_init_mV"] = float(max(0.0, args.ll_mon_w_init_mv))
+    if args.ll_mon_w_jitter_stdp_mv is not None:
+        override["ll_mon_w_jitter_stdp_mV"] = float(max(0.0, args.ll_mon_w_jitter_stdp_mv))
     if args.ll_mon_homeo_eta is not None:
         override["ll_mon_homeo_eta"] = float(args.ll_mon_homeo_eta)
     if args.ll_mon_homeo_every_trials is not None:
@@ -2406,6 +2501,13 @@ def main():
         override["mon_ts_apre"] = 0.0
         override["mon_ts_apost"] = 0.0
     params = replace(params, **override)
+
+    # Load mid-run checkpoint if --resume-from was given.
+    resume_checkpoint = None
+    if args.resume_from:
+        resume_checkpoint = _load_mid_checkpoint(args.resume_from)
+        if resume_checkpoint is None:
+            print(f"WARNING: no mid_checkpoint.npz found in {args.resume_from}/artifacts/ — starting from scratch.")
 
     n_runs = max(1, args.multi_seed)
     run_folder_name = (
@@ -2438,7 +2540,11 @@ def main():
     results = []
     for k in range(n_runs):
         p_run = replace(params, seed=args.seed_start + k)
-        r = run_spatial_two_stage_model(p_run)
+        r = run_spatial_two_stage_model(
+            p_run,
+            checkpoint_path=artifacts_dir / "mid_checkpoint.npz",
+            resume_checkpoint=resume_checkpoint,
+        )
         results.append(r)
 
         output = figures_dir / (

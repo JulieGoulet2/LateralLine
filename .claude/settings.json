@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // .tool_response.filePath // empty' 2>/dev/null); echo \"$f\" | grep -qE '\\.py$' || exit 0; cd /Users/juliegoulet/Documents/LateralLine2026/Code/LateralLine && python -m pytest -m 'not slow' -q 2>&1; [ $? -eq 0 ] || echo '{\"continue\":false,\"stopReason\":\"Fast tests failed after edit. Fix before proceeding.\"}'",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cmd=$(jq -r '.tool_input.command // empty' 2>/dev/null); echo \"$cmd\" | grep -qE '(run_ll_long\\.sh|ll_stdp_brian2\\.py)' || exit 0; cd /Users/juliegoulet/Documents/LateralLine2026/Code/LateralLine && python -m pytest -m 'not slow' -q 2>&1; [ $? -eq 0 ] || echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Fast tests failed. Fix before launching simulation.\"}}'",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}
