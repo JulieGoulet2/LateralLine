@@ -1,3 +1,28 @@
+"""
+Lateral-line somatotopic map formation via spike-timing-dependent plasticity (STDP).
+
+Three-layer network:
+  LL  (lateral-line afferents, n=100): Poisson neurons driven by hydrodynamic velocity
+        snapshots. Each neuron encodes one neuromast receptor on the fish body axis.
+  MON (medial octavolateral nucleus, n=3200): leaky integrate-and-fire (LIF) neurons.
+        Receive sparse LL input (fixed weight, or optionally plastic LL→MON STDP).
+        MON cells develop individual position selectivity but not a clean map;
+        they form a high-dimensional population code for stimulus position.
+  TS  (torus semicircularis, n=300): LIF neurons. Receive mixed random + weakly
+        topographic MON input. MON→TS synapses are plastic (multiplicative STDP +
+        homeostatic normalization). Over ~10k training trials the TS layer forms a
+        somatotopic map: each TS neuron becomes selective for a stimulus position.
+
+Training: sphere visits positions in ordered sweeps (0..4 cm, back-and-forth),
+          held 50 ms each. Each trial lasts trial_duration_s.
+Test:     sphere moves in a continuous sweep at fixed speed. STDP is frozen.
+          The Population Vector (PV) metric evaluates map quality; sigma_theta
+          measures somatotopic error (lower = better map).
+
+Entry points:
+  run_spatial_two_stage_model(params)  — run one simulation, return result dict
+  main()                               — CLI wrapper; reads args, saves figures + JSON
+"""
 import argparse
 import json
 import shutil
@@ -23,146 +48,106 @@ b2.prefs.codegen.target = "numpy"
 
 @dataclass
 class NetworkParams:
-    # -----------------------------
-    # Network sizes (as requested)
-    # -----------------------------
-    n_ll: int = 100
-    n_mon: int = 3200
-    n_ts: int = 300
+    # --- Network architecture ---
+    n_ll: int = 100    # number of LL afferent neurons (one per neuromast receptor)  --n-ll
+    n_mon: int = 3200  # number of MON neurons (expansion / intermediate layer)      --n-mon
+    n_ts: int = 300    # number of TS neurons (map output layer)                      --n-ts
 
-    # -----------------------------
-    # Time setup
-    # -----------------------------
-    dt_s: float = 0.001
-    trial_duration_s: float = 1.2
-    n_training_trials: int = 200
-    checkpoint_trials: int = 10
-    pv_eval_every_checkpoints: int = 2
-    checkpoint_save_every_n_checkpoints: int = 10
+    # --- Simulation timestep and trial structure ---
+    dt_s: float = 0.001                          # Brian2 integration timestep (seconds)                          --dt-s
+    trial_duration_s: float = 1.2                # duration of one training trial (seconds)                       --trial-duration-s
+    n_training_trials: int = 200                 # total number of training trials                                 --n-training-trials
+    checkpoint_trials: int = 10                  # record weight statistics every N trials                        --checkpoint-trials
+    pv_eval_every_checkpoints: int = 2           # run PV map-quality metric every N checkpoints                  --pv-eval-every-checkpoints
+    checkpoint_save_every_n_checkpoints: int = 10  # flush mid_checkpoint.npz to disk every N checkpoints        --checkpoint-save-every-n
 
-    # During training, one random snapshot is held for this duration.
-    training_position_hold_s: float = 0.05
-    # Training noise curriculum: set both to 0 for deterministic training.
-    # Example: early=0.0, late=1.0 to add noise in later training.
-    training_noise_scale_early: float = 0.0
-    training_noise_scale_late: float = 0.0
-    training_noise_switch_fraction: float = 0.5
-    # Structured training for clearer map emergence.
-    training_ordered_sweeps: bool = True
-    training_fixed_distance: bool = True
-    training_bidirectional: bool = False
-    # Restrict training to near-field distances where LL SNR is acceptable.
-    training_distance_min_cm: float = 0.8
-    training_distance_max_cm: float = 1.8
+    training_position_hold_s: float = 0.05       # how long each snapshot position is held during training (s)    --training-position-hold-s
+    training_noise_scale_early: float = 0.0      # LL noise std during early training (fraction of sigma_noise)  --training-noise-early
+    training_noise_scale_late: float = 0.0       # LL noise std during late training (fraction of sigma_noise)   --training-noise-late
+    training_noise_switch_fraction: float = 0.5  # training fraction where noise transitions early→late (0..1)   --training-noise-switch
+    training_ordered_sweeps: bool = True          # True: sweep x forward/backward; False: random shuffle         --training-ordered-sweeps / --no-training-ordered-sweeps
+    training_fixed_distance: bool = True          # fix sphere distance at mu_distance_cm (no distance jitter)    --training-fixed-distance / --no-training-fixed-distance
+    training_bidirectional: bool = False          # alternate sphere direction each snapshot                       --training-bidirectional / --no-training-bidirectional
+    training_distance_min_cm: float = 0.8         # minimum sphere distance during training (cm)                  --training-distance-min-cm
+    training_distance_max_cm: float = 1.8         # maximum sphere distance during training (cm)                  --training-distance-max-cm
 
-    # -----------------------------
-    # Stimulus setup
-    # -----------------------------
-    speed_cm_s: float = 5.0
-    distance_cm: float = 1.5
-    direction: float = 1.0
-    # Use raw LL firing rates or only modulation above spontaneous baseline.
-    # "raw":    rLL as generated by the hydrodynamic model
-    # "modulation": max(rLL - r0, 0), biologically akin to baseline cancellation
-    ll_rate_mode: str = "raw"
-    # Additional baseline subtraction and gain on LL rates (applied before PoissonGroup).
-    ll_rate_baseline_subtract_hz: float = 0.0
-    ll_rate_gain: float = 1.0
+    # --- Stimulus and test path ---
+    speed_cm_s: float = 5.0       # sphere speed (cm/s); test duration = test_path_cm / speed_cm_s   --speed-cm-s
+    distance_cm: float = 1.5      # sphere distance from lateral line during the test sweep (cm)       --distance-cm
+    direction: float = 1.0        # sphere travel direction (+1 = forward along x, -1 = backward)     --direction
+    ll_rate_mode: str = "raw"     # "raw": use LL rates from model; "modulation": subtract r0         --ll-rate-mode
+    ll_rate_baseline_subtract_hz: float = 0.0  # additional baseline subtracted from LL rates before Poisson drive (Hz)  --ll-baseline-subtract-hz
+    ll_rate_gain: float = 1.0                  # multiplicative gain on LL rates before Poisson drive                     --ll-rate-gain
+    ll_body_length_cm: float = 4.0             # physical length of the lateral line / fish body axis (cm)                --ll-body-length-cm
+    test_path_cm: float = 4.0                  # length of the continuous test sweep along x (cm)                        --test-path-cm
+    eval_x_min_cm: float | None = None         # lower bound of PV evaluation window on x axis (cm); None = full sweep   --eval-x-min-cm
+    eval_x_max_cm: float | None = None         # upper bound of PV evaluation window (cm); must be set with eval_x_min_cm --eval-x-max-cm
 
-    # Physical length of the lateral line (fish body axis, cm). Increase to reduce boundary effects.
-    ll_body_length_cm: float = 4.0
+    seed: int = 123  # random seed for connectivity, weight init, and training sequence  --seed-start
 
-    # Test path length along linear x (cm); sphere moves along a longer line than the receptor span.
-    test_path_cm: float = 4.0
-    # Optional evaluation window (linear physical x, cm). When both set, PV and test plots use only
-    # samples in [eval_x_min_cm, eval_x_max_cm] and remap x to a local axis for display.
-    eval_x_min_cm: float | None = None
-    eval_x_max_cm: float | None = None
+    # --- LIF neuron constants (apply to MON and TS) ---
+    vth_mV: float = -54.0    # spike threshold (mV)              --vth-mv
+    vreset_mV: float = -60.0  # reset potential after spike (mV)  --vreset-mv
+    el_mV: float = -74.0     # leak / resting potential (mV)     --el-mv
+    tau_ref_ms: float = 2.0  # absolute refractory period (ms)   --tau-ref-ms
+    tau_m_ms: float = 10.0   # membrane time constant (ms)       --tau-m-ms
+    tau_s_ms: float = 2.0    # synaptic PSP decay time constant (ms)  --tau-s-ms
 
-    seed: int = 123
+    # --- LL→MON connectivity ---
+    # Mixed random + weakly topographic. topography_strength=0 → fully random; =1 → all Gaussian.
+    p_ll_to_mon: float = 0.03                     # connection probability when topography_strength == 0          --p-ll-to-mon
+    ll_to_mon_in_degree: int = 3                  # LL inputs per MON neuron when topography_strength > 0         --ll-mon-in-degree
+    ll_to_mon_sigma: float = 15.0                 # spread of topographic Gaussian in LL-index units              --ll-mon-sigma
+    ll_to_mon_topography_strength: float = 0.01   # fraction of connections that follow somatotopy (0=random)     --ll-mon-topo
+    ll_mon_w_mean_mV: float = 7.0                 # mean LL→MON fixed weight (mV)                                 --ll-mon-w-mean-mv
+    ll_mon_w_jitter_mV: float = 3.0               # uniform jitter on fixed LL→MON weights (mV)                   --ll-mon-w-jitter-mv
 
-    # -----------------------------
-    # LIF constants (requested)
-    # -----------------------------
-    vth_mV: float = -54.0
-    vreset_mV: float = -60.0
-    el_mV: float = -74.0
-    tau_ref_ms: float = 2.0
-    tau_m_ms: float = 10.0
-    tau_s_ms: float = 2.0
+    # --- LL→MON STDP (optional plastic expansion) ---
+    ll_mon_use_stdp: bool = False             # enable multiplicative STDP on LL→MON synapses            --use-ll-mon-stdp
+    ll_mon_apre: float = 0.01                # pre-synaptic trace increment (LTP amplitude)              --ll-mon-apre
+    ll_mon_apost: float = -0.0105            # post-synaptic trace increment (LTD amplitude, negative)   --ll-mon-apost
+    ll_mon_wmax_mV: float = 20.0             # maximum LL→MON weight when STDP is enabled (mV)           --ll-mon-wmax-mv
+    ll_mon_w_init_mV: float = 10.0           # initial mean LL→MON weight when STDP is enabled (mV)      --ll-mon-w-init-mv
+    ll_mon_w_jitter_stdp_mV: float = 2.0     # initial weight jitter when STDP is enabled (mV)           --ll-mon-w-jitter-stdp-mv
+    ll_mon_homeo_eta: float = 0.0            # homeostatic scaling rate for incoming LL→MON weights       --ll-mon-homeo-eta
+    ll_mon_homeo_every_trials: int = 10      # apply LL→MON homeostasis every N trials                   --ll-mon-homeo-every-trials
 
-    # -----------------------------
-    # Connectivity structure
-    # -----------------------------
-    # LL -> MON: random sparse projection with optional weak somatotopy.
-    p_ll_to_mon: float = 0.03
-    ll_to_mon_in_degree: int = 3
-    ll_to_mon_sigma: float = 15.0
-    ll_to_mon_topography_strength: float = 0.01
-    ll_mon_w_mean_mV: float = 7.0
-    ll_mon_w_jitter_mV: float = 3.0
+    # --- MON→TS connectivity ---
+    # Mixed random + weakly topographic. topography_strength=0 → fully random; =1 → all Gaussian.
+    mon_to_ts_out_degree: int = 16                  # TS targets per MON neuron                                     --mon-ts-out-degree
+    mon_to_ts_sigma: float = 120.0                  # spread of topographic Gaussian in TS-index units              --mon-ts-sigma
+    mon_to_ts_topography_strength: float = 0.05     # fraction of MON→TS connections that follow somatotopy         --mon-ts-topo
 
-    # Optional LL -> MON STDP (plastic expansion layer, tuned from design script).
-    ll_mon_use_stdp: bool = False
-    ll_mon_apre: float = 0.01
-    ll_mon_apost: float = -0.0105
-    ll_mon_wmax_mV: float = 20.0
-    ll_mon_w_init_mV: float = 10.0
-    ll_mon_w_jitter_stdp_mV: float = 2.0
-    # Homeostatic normalization of incoming LL->MON weights (per MON neuron).
-    ll_mon_homeo_eta: float = 0.0
-    ll_mon_homeo_every_trials: int = 10
+    # --- MON→TS STDP ---
+    mon_ts_apre: float = 0.02        # pre-synaptic trace increment (LTP amplitude)            --mon-ts-apre
+    mon_ts_apost: float = -0.021     # post-synaptic trace increment (LTD amplitude, negative)  --mon-ts-apost
+    mon_ts_wmax: float = 0.045       # maximum dimensionless MON→TS weight                      --mon-ts-wmax
+    mon_ts_w_init: float = 0.020     # initial mean MON→TS weight                               --mon-ts-w-init
+    mon_ts_w_jitter: float = 0.010   # uniform jitter on initial MON→TS weights                 --mon-ts-w-jitter
+    mon_ts_homeo_eta: float = 0.0    # homeostatic scaling rate for incoming MON→TS weights      --mon-ts-homeo-eta
+    mon_ts_homeo_every_trials: int = 10  # apply MON→TS homeostasis every N trials              --mon-ts-homeo-every-trials
+    mon_ts_gain_mV: float = 30.0     # EPSP size per unit weight: ge_post += mon_ts_gain * w * mV  --mon-ts-gain-mv
 
-    # MON -> TS: random + weak somatotopy (distillation stage in space).
-    mon_to_ts_out_degree: int = 16
-    mon_to_ts_sigma: float = 120.0
-    mon_to_ts_topography_strength: float = 0.05
+    keep_mon_ts_stdp_during_test: bool = False  # if True, STDP stays active during the test phase (diagnostic)   --keep-mon-ts-stdp-during-test
+    test_using_held_snapshots: bool = False      # if True, test uses snapshot positions instead of continuous sweep  --test-using-held-snapshots
 
-    # -----------------------------
-    # STDP on MON -> TS ONLY
-    # Table III values.
-    # -----------------------------
-    mon_ts_apre: float = 0.02
-    mon_ts_apost: float = -0.021
-    mon_ts_wmax: float = 0.045
-    mon_ts_w_init: float = 0.020
-    mon_ts_w_jitter: float = 0.010
-    # Homeostatic normalization of incoming MON->TS weights (per TS neuron).
-    mon_ts_homeo_eta: float = 0.0
-    mon_ts_homeo_every_trials: int = 10
+    # --- Inhibition and background noise ---
+    mon_to_global_inh_p: float = 0.06             # MON→inh-cell connection probability                         --mon-global-inh-p
+    mon_to_global_inh_drive_mV: float = 0.5       # EPSP increment in MON inh-cell per spike (mV)              --mon-global-inh-drive-mv
+    global_inh_to_mon_mV: float = 1.4             # IPSP delivered by MON inh-cell to each MON neuron (mV)     --mon-global-inh-mv
 
-    # Scale from dimensionless weight to PSP size in mV.
-    mon_ts_gain_mV: float = 30.0
+    ts_lateral_radius: int = 14                    # TS lateral inhibition radius in neuron-index units (toroidal ring)  --ts-lateral-radius
+    ts_local_inh_peak_mV: float = 1.0             # peak TS lateral inhibition weight at distance 0 (mV)               --ts-local-inh-peak-mv
 
-    # If True, MON->TS STDP is not disabled before the test phase (default: freeze).
-    keep_mon_ts_stdp_during_test: bool = False
+    use_ts_feedback_inh: bool = False              # enable TS global feedback inhibition via dedicated inh cell   --use-ts-feedback-inh
+    ts_to_global_inh_p: float = 0.12              # TS→inh-cell connection probability                            --ts-feedback-p
+    ts_to_global_inh_drive_mV: float = 0.35       # EPSP increment in TS inh-cell per spike (mV)                  --ts-feedback-drive-mv
+    global_inh_to_ts_mV: float = 0.8              # IPSP delivered by TS inh-cell to each TS neuron (mV)          --ts-feedback-inh-mv
 
-    # If True, test phase uses held snapshots (same sampling as training) instead of continuous sweep.
-    test_using_held_snapshots: bool = False
-
-    # -----------------------------
-    # Inhibition / noisy background
-    # -----------------------------
-    # Global inhibition in MON for gain control / sparsity.
-    mon_to_global_inh_p: float = 0.06
-    mon_to_global_inh_drive_mV: float = 0.5
-    global_inh_to_mon_mV: float = 1.4
-
-    # TS local lateral inhibition for map sharpening.
-    ts_lateral_radius: int = 14
-    ts_local_inh_peak_mV: float = 1.0
-
-    # Optional TS activity-dependent feedback inhibition (global TS inhibition).
-    use_ts_feedback_inh: bool = False
-    ts_to_global_inh_p: float = 0.12
-    ts_to_global_inh_drive_mV: float = 0.35
-    global_inh_to_ts_mV: float = 0.8
-
-    # Background poisson drive.
-    bg_rate_mon_hz: float = 22.0
-    bg_rate_ts_hz: float = 12.0
-    bg_w_mon_mV: float = 1.5
-    bg_w_ts_mV: float = 0.60
+    bg_rate_mon_hz: float = 22.0    # MON background Poisson input rate (Hz)  --bg-rate-mon-hz
+    bg_rate_ts_hz: float = 12.0     # TS background Poisson input rate (Hz)   --bg-rate-ts-hz
+    bg_w_mon_mV: float = 1.5        # EPSP weight of MON background synapse (mV)  --bg-w-mon-mv
+    bg_w_ts_mV: float = 0.60        # EPSP weight of TS background synapse (mV)   --bg-w-ts-mv
 
 
 def apply_model_mode(params: NetworkParams, mode: str) -> NetworkParams:
@@ -794,13 +779,18 @@ def run_spatial_two_stage_model(params: NetworkParams, checkpoint_path=None, res
     test_duration_s = float(test_sim["t_s"][-1] + params.dt_s)
     total_duration_s = train_duration_s + test_duration_s
 
+    # Resets Brian2's global state (neuron groups, synapses, network objects) so
+    # sequential calls to this function don't accumulate stale objects.
     b2.start_scope()
     b2.defaultclock.dt = params.dt_s * b2.second
 
     all_rates_ta = b2.TimedArray(rates_all * b2.Hz, dt=params.dt_s * b2.second)
     ll = b2.PoissonGroup(params.n_ll, rates="all_rates_ta(t, i)", namespace={"all_rates_ta": all_rates_ta})
 
-    # LIF equations.
+    # LIF equations shared by MON, TS, and both inhibitory interneurons.
+    # v: membrane potential (volt); ge/gi: excitatory/inhibitory PSP contributions (volt).
+    # Each spike onto a post-synaptic neuron increments ge (or gi) by the synaptic weight w.
+    # ge and gi decay back to 0 with tau_s; the membrane leaks toward El with tau_m.
     eqs = """
     dv/dt = (El - v + ge - gi) / tau_m : volt (unless refractory)
     dge/dt = -ge / tau_s : volt
@@ -1030,7 +1020,10 @@ def run_spatial_two_stage_model(params: NetworkParams, checkpoint_path=None, res
     last_ckpt_t = 0.0
     last_ts_spike_count = 0
 
-    # Training loop (single phase, STDP active on LL->MON (optional) and MON->TS).
+    # Each trial runs trial_duration_s of simulation. The TimedArray advances the LL
+    # stimulus automatically. Both LL→MON (if enabled) and MON→TS STDP are active.
+    # Every checkpoint_trials, weight statistics are recorded and optionally written to disk
+    # so a crashed run can be resumed from mid_checkpoint.npz via --resume-from.
     for k in range(remaining_training_trials):
         b2.run(params.trial_duration_s * b2.second)
 
@@ -1133,12 +1126,14 @@ def run_spatial_two_stage_model(params: NetworkParams, checkpoint_path=None, res
                 w_mts_arr = np.clip(w_mts_arr * scale_ts[j_mts_conn], 0.0, params.mon_ts_wmax)
                 s_mon_ts.w = w_mts_arr
 
-    # Freeze STDP for test (unless diagnostic: keep learning during test).
+    # Freeze STDP by zeroing Apre/Apost so synaptic traces still update but weights don't change.
+    # This ensures test spikes reflect the map learned during training, not continued learning.
     if not bool(params.keep_mon_ts_stdp_during_test):
         s_mon_ts.namespace["Apre"] = 0.0
         s_mon_ts.namespace["Apost"] = 0.0
 
-    # Test run.
+    # Run the test sweep. The sphere moves continuously at fixed speed; the SpikeMonitor
+    # records all TS spikes which are later passed to pv_map_quality_from_ts_spikes().
     b2.run(test_duration_s * b2.second, report="text")
 
     w_after = np.array(s_mon_ts.w[:], dtype=float, copy=True)
@@ -1188,6 +1183,10 @@ def run_spatial_two_stage_model(params: NetworkParams, checkpoint_path=None, res
     print(f"[debug] total TS spikes (train): {n_ts_spikes_tr}")
     print(f"[debug] total TS spikes (test): {n_ts_spikes_te}")
 
+    # Result dict consumed by save_learning_artifacts(), all save_*_figure() functions,
+    # and the tests. Key fields: sp_ts (SpikeMonitor for PV analysis), w_before/w_after
+    # (MON→TS weights), pv_sigma_theta (map quality), pv_valid_fraction (fraction of test
+    # bins with TS activity), checkpoint_t_s / w_mean_series (training learning curves).
     return {
         "params": params,
         "train_samples": train_samples,
@@ -1301,6 +1300,9 @@ from plots import (
 
 
 def main():
+    # CLI workflow: choose a parameter preset (--mode), then optionally override individual
+    # parameters with their specific flags. Run one seed or many (--multi-seed).
+    # All outputs go under Runs/<run-name>/: figures/, artifacts/, params.json.
     parser = argparse.ArgumentParser(description="Lateral-line MON/TS STDP model (Brian2).")
     parser.add_argument(
         "--mode",
@@ -1598,6 +1600,49 @@ def main():
             "Loads artifacts/mid_checkpoint.npz and continues training from the saved trial."
         ),
     )
+    # --- Network architecture ---
+    parser.add_argument("--n-mon", type=int, default=None, help="Override number of MON neurons.")
+    parser.add_argument("--n-ts", type=int, default=None, help="Override number of TS neurons.")
+    # --- Simulation timestep and trial structure ---
+    parser.add_argument("--dt-s", type=float, default=None, help="Override simulation integration timestep (seconds).")
+    parser.add_argument("--trial-duration-s", type=float, default=None, help="Override duration of each training trial (seconds).")
+    parser.add_argument("--checkpoint-trials", type=int, default=None, help="Record weight statistics every N training trials.")
+    parser.add_argument("--pv-eval-every-checkpoints", type=int, default=None, help="Evaluate PV map quality every N checkpoints.")
+    parser.add_argument("--checkpoint-save-every-n", type=int, default=None, help="Flush mid_checkpoint.npz to disk every N checkpoints.")
+    parser.add_argument("--training-position-hold-s", type=float, default=None, help="Duration each snapshot position is held during training (s).")
+    parser.add_argument("--training-noise-early", type=float, default=None, help="LL noise std during early training (fraction of sigma_noise).")
+    parser.add_argument("--training-noise-late", type=float, default=None, help="LL noise std during late training (fraction of sigma_noise).")
+    parser.add_argument("--training-noise-switch", type=float, default=None, help="Training fraction where noise transitions early→late (0..1).")
+    parser.add_argument("--training-ordered-sweeps", action=argparse.BooleanOptionalAction, default=None, help="Forward/backward sweeps (True) or random shuffle (False).")
+    parser.add_argument("--training-fixed-distance", action=argparse.BooleanOptionalAction, default=None, help="Fix sphere distance at mu_distance_cm during training (no jitter).")
+    parser.add_argument("--training-bidirectional", action=argparse.BooleanOptionalAction, default=None, help="Alternate sphere direction each snapshot.")
+    # --- Stimulus ---
+    parser.add_argument("--speed-cm-s", type=float, default=None, help="Sphere speed in cm/s; sets test duration via test_path_cm / speed.")
+    parser.add_argument("--direction", type=float, default=None, help="Sphere travel direction (+1 = forward, -1 = backward).")
+    # --- LIF neuron constants ---
+    parser.add_argument("--vth-mv", type=float, default=None, help="Override LIF spike threshold (mV).")
+    parser.add_argument("--vreset-mv", type=float, default=None, help="Override LIF reset potential after spike (mV).")
+    parser.add_argument("--el-mv", type=float, default=None, help="Override LIF leak/resting potential (mV).")
+    parser.add_argument("--tau-ref-ms", type=float, default=None, help="Override absolute refractory period (ms).")
+    parser.add_argument("--tau-m-ms", type=float, default=None, help="Override membrane time constant (ms).")
+    parser.add_argument("--tau-s-ms", type=float, default=None, help="Override synaptic PSP decay time constant (ms).")
+    # --- LL→MON connectivity ---
+    parser.add_argument("--p-ll-to-mon", type=float, default=None, help="LL→MON connection probability (used when topo == 0).")
+    parser.add_argument("--ll-mon-sigma", type=float, default=None, help="Override LL→MON topographic Gaussian spread (LL-index units).")
+    parser.add_argument("--ll-mon-w-mean-mv", type=float, default=None, help="Override LL→MON mean fixed weight (mV).")
+    parser.add_argument("--ll-mon-w-jitter-mv", type=float, default=None, help="Override LL→MON fixed-weight jitter (mV).")
+    # --- MON→TS STDP ---
+    parser.add_argument("--mon-ts-apre", type=float, default=None, help="Override MON→TS STDP pre-synaptic increment (LTP amplitude).")
+    parser.add_argument("--mon-ts-apost", type=float, default=None, help="Override MON→TS STDP post-synaptic increment (LTD amplitude, negative).")
+    parser.add_argument("--mon-ts-wmax", type=float, default=None, help="Override MON→TS maximum dimensionless weight.")
+    parser.add_argument("--mon-ts-w-init", type=float, default=None, help="Override MON→TS initial mean weight.")
+    parser.add_argument("--mon-ts-w-jitter", type=float, default=None, help="Override MON→TS initial weight jitter.")
+    parser.add_argument("--mon-ts-homeo-every-trials", type=int, default=None, help="Override MON→TS homeostasis period (every N training trials).")
+    # --- Inhibition ---
+    parser.add_argument("--mon-global-inh-p", type=float, default=None, help="Override MON→inh-cell connection probability.")
+    parser.add_argument("--mon-global-inh-drive-mv", type=float, default=None, help="Override MON→inh-cell EPSP drive (mV per spike).")
+    # --- Background ---
+    parser.add_argument("--bg-w-mon-mv", type=float, default=None, help="Override MON background synapse weight (mV).")
     args = parser.parse_args()
     if (args.eval_x_min_cm is not None) ^ (args.eval_x_max_cm is not None):
         parser.error("--eval-x-min and --eval-x-max must be given together")
@@ -1688,6 +1733,77 @@ def main():
         override["ll_mon_apost"] = 0.0
         override["mon_ts_apre"] = 0.0
         override["mon_ts_apost"] = 0.0
+    # New per-parameter overrides (flags added to complete CLI coverage).
+    if args.n_mon is not None:
+        override["n_mon"] = max(1, int(args.n_mon))
+    if args.n_ts is not None:
+        override["n_ts"] = max(1, int(args.n_ts))
+    if args.dt_s is not None:
+        override["dt_s"] = float(max(1e-6, args.dt_s))
+    if args.trial_duration_s is not None:
+        override["trial_duration_s"] = float(max(1e-3, args.trial_duration_s))
+    if args.checkpoint_trials is not None:
+        override["checkpoint_trials"] = int(max(1, args.checkpoint_trials))
+    if args.pv_eval_every_checkpoints is not None:
+        override["pv_eval_every_checkpoints"] = int(max(1, args.pv_eval_every_checkpoints))
+    if args.checkpoint_save_every_n is not None:
+        override["checkpoint_save_every_n_checkpoints"] = int(max(1, args.checkpoint_save_every_n))
+    if args.training_position_hold_s is not None:
+        override["training_position_hold_s"] = float(max(1e-4, args.training_position_hold_s))
+    if args.training_noise_early is not None:
+        override["training_noise_scale_early"] = float(max(0.0, args.training_noise_early))
+    if args.training_noise_late is not None:
+        override["training_noise_scale_late"] = float(max(0.0, args.training_noise_late))
+    if args.training_noise_switch is not None:
+        override["training_noise_switch_fraction"] = float(np.clip(args.training_noise_switch, 0.0, 1.0))
+    if args.training_ordered_sweeps is not None:
+        override["training_ordered_sweeps"] = bool(args.training_ordered_sweeps)
+    if args.training_fixed_distance is not None:
+        override["training_fixed_distance"] = bool(args.training_fixed_distance)
+    if args.training_bidirectional is not None:
+        override["training_bidirectional"] = bool(args.training_bidirectional)
+    if args.speed_cm_s is not None:
+        override["speed_cm_s"] = float(max(1e-6, args.speed_cm_s))
+    if args.direction is not None:
+        override["direction"] = float(args.direction)
+    if args.vth_mv is not None:
+        override["vth_mV"] = float(args.vth_mv)
+    if args.vreset_mv is not None:
+        override["vreset_mV"] = float(args.vreset_mv)
+    if args.el_mv is not None:
+        override["el_mV"] = float(args.el_mv)
+    if args.tau_ref_ms is not None:
+        override["tau_ref_ms"] = float(max(0.0, args.tau_ref_ms))
+    if args.tau_m_ms is not None:
+        override["tau_m_ms"] = float(max(0.1, args.tau_m_ms))
+    if args.tau_s_ms is not None:
+        override["tau_s_ms"] = float(max(0.1, args.tau_s_ms))
+    if args.p_ll_to_mon is not None:
+        override["p_ll_to_mon"] = float(np.clip(args.p_ll_to_mon, 0.0, 1.0))
+    if args.ll_mon_sigma is not None:
+        override["ll_to_mon_sigma"] = float(max(1e-6, args.ll_mon_sigma))
+    if args.ll_mon_w_mean_mv is not None:
+        override["ll_mon_w_mean_mV"] = float(max(0.0, args.ll_mon_w_mean_mv))
+    if args.ll_mon_w_jitter_mv is not None:
+        override["ll_mon_w_jitter_mV"] = float(max(0.0, args.ll_mon_w_jitter_mv))
+    if args.mon_ts_apre is not None:
+        override["mon_ts_apre"] = float(args.mon_ts_apre)
+    if args.mon_ts_apost is not None:
+        override["mon_ts_apost"] = float(args.mon_ts_apost)
+    if args.mon_ts_wmax is not None:
+        override["mon_ts_wmax"] = float(max(0.0, args.mon_ts_wmax))
+    if args.mon_ts_w_init is not None:
+        override["mon_ts_w_init"] = float(max(0.0, args.mon_ts_w_init))
+    if args.mon_ts_w_jitter is not None:
+        override["mon_ts_w_jitter"] = float(max(0.0, args.mon_ts_w_jitter))
+    if args.mon_ts_homeo_every_trials is not None:
+        override["mon_ts_homeo_every_trials"] = int(max(1, args.mon_ts_homeo_every_trials))
+    if args.mon_global_inh_p is not None:
+        override["mon_to_global_inh_p"] = float(np.clip(args.mon_global_inh_p, 0.0, 1.0))
+    if args.mon_global_inh_drive_mv is not None:
+        override["mon_to_global_inh_drive_mV"] = float(max(0.0, args.mon_global_inh_drive_mv))
+    if args.bg_w_mon_mv is not None:
+        override["bg_w_mon_mV"] = float(max(0.0, args.bg_w_mon_mv))
     params = replace(params, **override)
 
     # Load mid-run checkpoint if --resume-from was given.
@@ -1725,6 +1841,8 @@ def main():
         )
     print(f"Run directory: {run_dir.resolve()}")
 
+    # Each seed gets seed_start + k so seeds are contiguous (123, 124, 125, …).
+    # This keeps runs reproducible and comparable without overlap.
     results = []
     for k in range(n_runs):
         p_run = replace(params, seed=args.seed_start + k)
@@ -1896,6 +2014,8 @@ def main():
         summary["pv_map_quality"] = per[0]["pv_map_quality"]
     else:
         summary["runs"] = per
+    # Map health at a glance: sigma_theta < 1 rad is good; valid_fraction > 0.5 means
+    # TS was active for most of the test window and produced meaningful PV estimates.
     with (run_dir / "run_summary.json").open("w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
 
