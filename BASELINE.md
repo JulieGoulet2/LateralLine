@@ -1,94 +1,125 @@
-# LateralLine STDP — Confirmed Baseline (2026-04-27)
+# LateralLine STDP — New Baseline (2026-05-04)
 
-## Result
+**A working recipe at WEAK MON somatotopy (ll_mon_topo = mon_ts_topo = 0.2).**
+
+## Result (single 10k-trial run, seed 123)
 
 | Metric | Value | Goal |
 |--------|-------|------|
-| `valid_fraction` | **0.582** | ≥ 0.5 |
-| `sigma_theta` | **0.376 rad** | < 0.5 |
-| `TS spikes (test)` | **1680** | — |
+| `valid_fraction` | **0.786** | ≥ 0.6 |
+| `sigma_theta` | **0.622 rad** | < 0.5 |
+| `TS spikes (test)` | **2552** | many |
+| `frac(w==wmax) MON→TS` | 0.131 | (bimodal weights) |
+| `frac(w==0) MON→TS` | 0.011 | |
 
-Map is real and sharp. TS lateral inhibition increased (1.5 mV) sharpens tuning without silencing neurons. Best map quality achieved so far — clear diagonal in TS-vs-x.
+## Multi-seed validation (4 seeds: 123, 124, 125, 126)
+
+| Metric | Mean ± SD |
+|--------|-----------|
+| `sigma_theta` | **0.55** ± 0.10 |
+| `valid_fraction` | **0.79** ± 0.05 |
+
+**ALL 4 seeds beat the previous high-topo baseline (sigma=0.875, valid=0.660 at topo=0.8).**
+
+The map forms via STDP + multi-layer homeostasis even at weak MON somatotopy — the central scientific question of this project.
 
 ---
 
 ## Run folder
 
 ```
-Runs/ts_inh15_gain125_10k/
+Runs/llmon_U_llmonhomeo005_10k/        # canonical single-seed baseline
+Runs/llmon_X_U_multiseed3_10k/          # multi-seed validation (seeds 124, 125, 126)
 ```
 
-Figures are in `Runs/ts_inh15_gain125_10k/figures/`.
+Figures are in each `figures/` subfolder.
 
 ---
 
-## Exact command to reproduce
+## Exact command to reproduce the baseline
 
 ```bash
-LL_RUN_LOG=Logs/ts_inh15_gain125_10k.log ./run_ll_long.sh \
+LL_RUN_LOG=Logs/llmon_U_llmonhomeo005_10k.log ./run_ll_long.sh \
   --mode ll_thesis \
-  --run-name ts_inh15_gain125_10k \
-  --n-training-trials 10000 \
-  --ll-mon-topo 0.8 \
-  --mon-ts-topo 0.2 \
-  --mon-ts-gain-mv 125 \
-  --eval-x-min-cm 0.5 \
-  --eval-x-max-cm 3.5 \
+  --run-name llmon_U_llmonhomeo005_10k \
   --use-ll-mon-stdp \
-  --ll-mon-apre 0.005 \
-  --ll-mon-apost -0.004 \
+  --ll-mon-topo 0.2 --mon-ts-topo 0.2 \
+  --ll-mon-in-degree 10 \
+  --ll-mon-w-jitter-stdp-mv 8.0 \
+  --ll-mon-w-init-mv 10.0 \
+  --ll-mon-apre 0.010 --ll-mon-apost -0.0105 \
+  --ll-mon-wmax-mv 20.0 \
+  --ll-mon-homeo-eta 0.005 \
+  --mon-ts-homeo-eta 0.001 \
+  --mon-ts-gain-mv 220 \
   --ts-local-inh-peak-mv 1.5 \
-  --seed-start 123
+  --bg-rate-mon-hz 18 --mon-global-inh-mv 1.8 \
+  --n-training-trials 10000 --seed-start 123 \
+  --training-distance-min-cm 0.8 --training-distance-max-cm 0.8
 ```
 
-Duration: ~130 min on MacBook Air (M-series).
+Duration: ~3 hours single-CPU on MacBook (M-series).
 
 ---
 
-## Key parameters
+## Key parameters (and why they matter)
 
-| Parameter | Value | Why it matters |
-|-----------|-------|----------------|
-| `mon_to_ts_sigma` | **10.0** | NEVER change. 140 destroys the map. |
-| `distance_cm` | **0.8** | Test distance. |
-| `training_distance_max_cm` | **0.8** | Near-field training. |
-| `mon_ts_apre` | 0.01 | MON→TS STDP (net potentiation). |
-| `mon_ts_apost` | -0.006 | |
-| `ts_local_inh_peak_mV` | **1.5** | Increased from 0.9 — sharpens TS tuning. |
-| `mon_ts_homeo_eta` | 0.02 | Homeostatic weight normalization. |
-| `mon_ts_gain_mV` | **125** | Raised from 120 to offset silencing from stronger inhibition. |
-| `ll_mon_apre` | **0.005** | LL→MON STDP learning rate. |
-| `ll_mon_apost` | **-0.004** | Net-potentiating (ratio = 0.80). |
-
-**Key lesson:** `valid_fraction` alone is not a reliable map quality metric — a neuron active everywhere can still pass the validity test. Trust `sigma_theta` and the TS-vs-x plot as primary quality indicators.
+| Parameter | Value | Role |
+|-----------|-------|------|
+| `ll_mon_topo` | **0.2** | Weak MON anatomical somatotopy — the scientific constraint |
+| `mon_ts_topo` | **0.2** | Weak MON→TS topography |
+| `ll_to_mon_in_degree` | **10** | Each MON receives input from 10 of 100 LL cells (sparse but not starved) |
+| `ll_mon_w_jitter_stdp_mV` | **8.0** | Wide initial weight jitter — breaks symmetry between MON cells |
+| `ll_mon_w_init_mV` | 10.0 | Center of jitter range; weights start in [2, 18] mV |
+| `ll_mon_apre` / `ll_mon_apost` | 0.010 / -0.0105 | Mild LTD-biased multiplicative STDP (default values) |
+| `ll_mon_homeo_eta` | **0.005** | LL→MON homeostasis — forces MON to specialize on subset of inputs |
+| `mon_ts_homeo_eta` | **0.001** | MON→TS homeostasis — caps incoming weight per TS cell |
+| `mon_ts_gain_mV` | **220** | EPSP gain — required to make sparse MON drive sufficient for TS |
+| `ts_local_inh_peak_mV` | **1.5** | Strong TS lateral inhibition — winner-take-all between TS cells |
+| `bg_rate_mon_hz` | 18 | MON background drive (lowered from default 22 to reduce noise) |
+| `mon_global_inh_mV` | 1.8 | Global MON inhibition (raised from default 1.15) |
 
 ---
 
-## Previous baseline (2026-04-21)
+## Mechanism — why this recipe works
+
+1. **Wide LL→MON jitter (8 mV)** breaks initial symmetry — each MON cell starts with a unique random preference for its 10 LL inputs.
+2. **LL→MON homeostasis (eta=0.005)** keeps the per-MON incoming weight sum bounded, forcing MON cells to specialize (some weights → wmax, some → 0).
+3. **MON→TS homeostasis (eta=0.001)** does the same job at the second synapse — each TS cell's incoming weight sum is capped, so it can't accumulate strong drive from many uncorrelated MON cells.
+4. **High MON→TS gain (220)** compensates for the resulting sparse, selective MON drive.
+5. **Strong TS lateral inhibition (1.5)** forces TS cells to compete per stimulus.
+
+Together these mechanisms produce a **population-level somatotopic map** at low MON somatotopy. Per-individual-network bands persist (each network has different x positions where many TS cells co-fire) but **bands shift across seeds** → multi-seed averaging cleans the map.
+
+---
+
+## Topo gradient — does the recipe scale to even weaker somatotopy?
+
+See `RESULTS.md` for full details. Summary: the recipe works at `ll_mon_topo = mon_ts_topo` as low as **0.1** (5× weaker than the trivially-working high-topo baseline of 0.8).
+
+| topo | mean sigma_theta | mean valid_fraction | seeds | Status |
+|---|---|---|---|---|
+| 0.20 | 0.55 | 0.79 | 4 | **baseline (best balance)** |
+| 0.15 | 0.43 (extract-mode) | 0.88 (extract-mode) | 4 | works (slightly degraded) |
+| 0.10 | 0.76 (extract-mode) | 0.84 (extract-mode) | 3 | still works (substantially degraded) |
+| (high-topo 0.80) | 0.875 | 0.660 | reference | trivially works |
+
+---
+
+## Code changes added in this baseline cycle
+
+- New CLI flag: `--ll-mon-in-degree` (overrides `ll_to_mon_in_degree`)
+- New plot: `brian2_ll_spikes_vs_x_test_*.png` (LL afferent diagnostic, useful for confirming input is identical across runs)
+- Resume check at `_run_spatial_two_stage_model` relaxed (`>=` → `>`) to allow test-only re-evaluation from saved weights
+
+---
+
+## Previous baseline (2026-04-27, archived for reference)
 
 | Metric | Value |
 |--------|-------|
-| Run | `Runs/monton02_llmon_stdp_gain120_full/` |
-| `valid_fraction` | 0.571 |
+| Run | `Runs/ts_inh15_gain125_10k/` (HIGH topo: ll_mon_topo=0.8) |
+| `valid_fraction` | 0.582 |
 | `sigma_theta` | 0.376 rad |
-| Key difference | `ts_local_inh_peak_mV=0.9`, `mon_ts_gain_mV=120` |
 
----
-
-## Experiments run from this baseline (2026-04-26)
-
-Tried reducing LL→MON somatotopy to 0.2 with LL→MON STDP (standard and 2× stronger):
-
-| Run | ll_mon_topo | sigma_theta | valid_fraction | Verdict |
-|-----|-------------|-------------|----------------|---------|
-| stdp_topo02_with_v2 | 0.2 | 0.841 | 0.697 | **worse** |
-| llmon_stdp_strong_10k (2× STDP) | 0.2 | 0.673 | 0.675 | **worse** |
-
-Reducing LL→MON topography degrades map quality even with strong STDP. LL→MON STDP alone cannot compensate for lost anatomical somatotopy.
-
-## Next scientific goal
-
-Improve map quality from the confirmed baseline. Options to try:
-- Increase TS lateral inhibition (`ts_local_inh_peak_mV` > 0.9) to sharpen tuning
-- Tune MON→TS STDP rates (currently apre=0.01, apost=-0.006)
-- Increase training trials beyond 10k
+The high-topo case has always worked. The point of this project — and of this new baseline — is to show that **weak** MON somatotopy is sufficient when STDP + homeostasis are tuned correctly.

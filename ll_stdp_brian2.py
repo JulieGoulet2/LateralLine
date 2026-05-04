@@ -806,9 +806,9 @@ def run_spatial_two_stage_model(params: NetworkParams, checkpoint_path=None, res
     k_start = 0
     if resume_checkpoint is not None:
         k_start = int(resume_checkpoint["trial_idx"]) + 1
-        if k_start >= params.n_training_trials:
+        if k_start > params.n_training_trials:
             raise ValueError(
-                f"Checkpoint trial {k_start - 1} >= n_training_trials {params.n_training_trials}; nothing left to run."
+                f"Checkpoint trial {k_start - 1} > n_training_trials {params.n_training_trials}; nothing left to run."
             )
         skip_steps = k_start * trial_steps
         train_rates = train_rates[skip_steps:]
@@ -1875,6 +1875,76 @@ def save_mon_spikes_vs_x_test_figure(result: dict, out_path: Path):
     plt.close(fig)
 
 
+def save_ll_spikes_vs_x_test_figure(result: dict, out_path: Path):
+    """
+    Diagnostic scatter: LL afferent index vs stimulus position x during the test window only.
+    LL is a pure Poisson source driven by the stimulus rate function — this plot shows the
+    INPUT to the network and should be the same across runs with the same stimulus and seed.
+    Useful as a baseline to verify input is identical when comparing downstream MON/TS results.
+    """
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    p = result["params"]
+    sp_ll = result["sp_ll"]
+    test_sim = result["test_sim"]
+    train_duration_s = float(result["train_duration_s"])
+    test_duration_s = float(result["test_duration_s"])
+    t_test_end = train_duration_s + test_duration_s
+
+    x_test = np.asarray(test_sim["X_cm"], dtype=float)
+    dt = float(p.dt_s)
+
+    ll_t_abs = np.asarray(sp_ll.t / b2.second, dtype=float)
+    ll_i = np.asarray(sp_ll.i, dtype=int)
+
+    m = (ll_t_abs >= train_duration_s) & (ll_t_abs < t_test_end)
+    if not np.any(m):
+        fig, ax = plt.subplots(1, 1, figsize=(8, 4.2))
+        ax.text(0.5, 0.5, "No LL spikes during test", ha="center", va="center", transform=ax.transAxes, fontsize=12)
+        ax.set_xlabel("stimulus x (cm, linear)")
+        ax.set_ylabel("LL index")
+        ax.set_title("LL spikes vs x during test window")
+        ax.grid(alpha=0.25)
+        fig.tight_layout()
+        fig.savefig(out_path, dpi=180)
+        plt.close(fig)
+        return
+
+    ll_t_rel = ll_t_abs[m] - train_duration_s
+    ll_i = ll_i[m]
+
+    k = np.floor(ll_t_rel / dt).astype(int)
+    valid = (k >= 0) & (k < x_test.size) & (ll_i >= 0) & (ll_i < p.n_ll)
+    if not np.any(valid):
+        print("No valid LL spikes after time-to-index mapping")
+        return
+
+    x_sp = x_test[k[valid]]
+    ll_i = ll_i[valid]
+
+    w = _eval_window_cm(p)
+    if w is not None:
+        emin, emax = w
+        mwin = (x_sp >= emin) & (x_sp <= emax)
+        if not np.any(mwin):
+            return
+        x_sp = x_sp[mwin] - emin
+        ll_i = ll_i[mwin]
+        xlab = f"x in eval window (local 0 at {emin:.3f} cm)"
+    else:
+        xlab = "stimulus x (cm, linear)"
+
+    fig, ax = plt.subplots(1, 1, figsize=(8, 4.2))
+    ax.scatter(x_sp, ll_i, s=0.5, alpha=0.35, color="tab:blue")
+    ax.set_xlabel(xlab)
+    ax.set_ylabel("LL index")
+    ax.set_title("LL spikes vs x during test window")
+    ax.grid(alpha=0.25)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=180)
+    plt.close(fig)
+
+
 def save_mon_tuning_examples_figure(result: dict, out_path: Path, n_examples: int = 8):
     """
     Example MON neurons: firing rate vs position x during the test sweep.
@@ -2282,6 +2352,12 @@ def main():
         help="Override LL->MON initial weight jitter (mV) when STDP is enabled.",
     )
     parser.add_argument(
+        "--ll-mon-in-degree",
+        type=int,
+        default=None,
+        help="Override LL->MON in-degree (number of LL inputs each MON receives, when topo > 0).",
+    )
+    parser.add_argument(
         "--ll-mon-homeo-eta",
         type=float,
         default=None,
@@ -2475,6 +2551,8 @@ def main():
         override["ll_mon_w_init_mV"] = float(max(0.0, args.ll_mon_w_init_mv))
     if args.ll_mon_w_jitter_stdp_mv is not None:
         override["ll_mon_w_jitter_stdp_mV"] = float(max(0.0, args.ll_mon_w_jitter_stdp_mv))
+    if args.ll_mon_in_degree is not None:
+        override["ll_to_mon_in_degree"] = int(max(1, args.ll_mon_in_degree))
     if args.ll_mon_homeo_eta is not None:
         override["ll_mon_homeo_eta"] = float(args.ll_mon_homeo_eta)
     if args.ll_mon_homeo_every_trials is not None:
@@ -2583,6 +2661,10 @@ def main():
             f"brian2_mon_spikes_vs_x_test_u_{p_run.speed_cm_s:.1f}_nMON_{p_run.n_mon}_nTS_{p_run.n_ts}_seed_{p_run.seed}.png"
         )
         save_mon_spikes_vs_x_test_figure(r, mon_vs_x_out)
+        ll_vs_x_out = figures_dir / (
+            f"brian2_ll_spikes_vs_x_test_u_{p_run.speed_cm_s:.1f}_nMON_{p_run.n_mon}_nTS_{p_run.n_ts}_seed_{p_run.seed}.png"
+        )
+        save_ll_spikes_vs_x_test_figure(r, ll_vs_x_out)
         mon_tune_ex_out = figures_dir / (
             f"brian2_mon_tuning_examples_u_{p_run.speed_cm_s:.1f}_nMON_{p_run.n_mon}_nTS_{p_run.n_ts}_seed_{p_run.seed}.png"
         )
@@ -2645,6 +2727,10 @@ def main():
         f"brian2_mon_spikes_vs_x_test_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
     )
     save_mon_spikes_vs_x_test_figure(result, mon_vs_x_out)
+    ll_vs_x_out = figures_dir / (
+        f"brian2_ll_spikes_vs_x_test_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
+    )
+    save_ll_spikes_vs_x_test_figure(result, ll_vs_x_out)
     mon_tune_ex_out = figures_dir / (
         f"brian2_mon_tuning_examples_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
     )
