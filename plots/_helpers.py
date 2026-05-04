@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
-    from ll_stdp_brian2 import NetworkParams
+    from params import NetworkParams
 
 
 def _eval_window_cm(params: NetworkParams) -> tuple[float, float] | None:
