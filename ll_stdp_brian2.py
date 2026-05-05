@@ -1720,6 +1720,23 @@ def main():
         print(f"Seed {p_run.seed} saved TS pop rate train→test: {ts_tr_out}")
         print(f"Seed {p_run.seed} saved weights: {weights_path}")
         print(f"Seed {p_run.seed} saved params: {params_path}")
+        seed_results_path = artifacts_dir / f"seed_{p_run.seed}_results.json"
+        with seed_results_path.open("w", encoding="utf-8") as _f:
+            json.dump(
+                {
+                    "seed": int(p_run.seed),
+                    "sigma_theta_rad": float(r["pv_sigma_theta"]),
+                    "valid_fraction": float(r["pv_valid_fraction"]),
+                    "delta_trial_rad": float(r["pv_delta_trial"]),
+                },
+                _f,
+                indent=2,
+            )
+        print(
+            f"Seed {p_run.seed} results: "
+            f"sigma_theta={r['pv_sigma_theta']:.4f} rad, "
+            f"valid_fraction={r['pv_valid_fraction']:.3f}"
+        )
 
     result = results[0]
     output = figures_dir / f"brian2_spatial_two_stage_u_{params.speed_cm_s:.1f}_nMON_{params.n_mon}_nTS_{params.n_ts}.png"
