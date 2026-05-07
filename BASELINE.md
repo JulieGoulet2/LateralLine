@@ -12,14 +12,14 @@
 | `frac(w==wmax) MON→TS` | 0.131 | (bimodal weights) |
 | `frac(w==0) MON→TS` | 0.011 | |
 
-## Multi-seed validation (4 seeds: 123, 124, 125, 126)
+## Multi-seed validation (10 seeds: 123–132)
 
 | Metric | Mean ± SD |
 |--------|-----------|
-| `sigma_theta` | **0.55** ± 0.10 |
-| `valid_fraction` | **0.79** ± 0.05 |
+| `sigma_theta` | **0.53** ± 0.11 |
+| `valid_fraction` | **0.80** ± 0.05 |
 
-**ALL 4 seeds beat the previous high-topo baseline (sigma=0.875, valid=0.660 at topo=0.8).**
+**ALL 10 seeds beat the previous high-topo baseline (sigma=0.875, valid=0.660 at topo=0.8).**
 
 The map forms via STDP + multi-layer homeostasis even at weak MON somatotopy — the central scientific question of this project.
 

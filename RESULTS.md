@@ -18,11 +18,25 @@ All recipes use the same parameter set (see `BASELINE.md`); only the two topogra
 
 ### 0.20 — new baseline
 
-- 4 seeds (123, 124, 125, 126), 10000 trials each
-- Mean `sigma_theta = 0.55` ± 0.10 rad
-- Mean `valid_fraction = 0.79` ± 0.05
-- All 4 seeds beat the high-topo (0.8) baseline of sigma=0.875, valid=0.660
+- **10 seeds (123–132)**, 10000 trials each (training-mode metrics)
+- Mean `sigma_theta = 0.53` ± 0.11 rad
+- Mean `valid_fraction = 0.80` ± 0.05
+- All 10 seeds beat the high-topo (0.8) baseline of sigma=0.875, valid=0.660
 - Per-network bands persist but at different x positions per seed → multi-seed averaging cleans the map at the population level
+
+| Seed | sigma_theta (rad) | valid_fraction |
+|------|-------------------|----------------|
+| 123  | 0.622             | 0.786          |
+| 124  | 0.480             | 0.817          |
+| 125  | 0.671             | 0.725          |
+| 126  | 0.427             | 0.853          |
+| 127  | 0.399             | 0.896          |
+| 128  | 0.649             | 0.779          |
+| 129  | 0.416             | 0.746          |
+| 130  | 0.486             | 0.853          |
+| 131  | 0.490             | 0.789          |
+| 132  | 0.635             | 0.787          |
+| **mean ± SD** | **0.53 ± 0.11** | **0.80 ± 0.05** |
 
 ### 0.15 — degraded but still working (best individual seed metrics)
 
