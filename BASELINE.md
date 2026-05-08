@@ -12,12 +12,12 @@
 | `frac(w==wmax) MON→TS` | 0.131 | (bimodal weights) |
 | `frac(w==0) MON→TS` | 0.011 | |
 
-## Multi-seed validation (10 seeds: 123–132)
+## Multi-seed validation (10 seeds: 123–132, extract-mode)
 
 | Metric | Mean ± SD |
 |--------|-----------|
-| `sigma_theta` | **0.53** ± 0.11 |
-| `valid_fraction` | **0.80** ± 0.05 |
+| `sigma_theta` | **0.354** ± 0.058 |
+| `valid_fraction` | **0.912** ± 0.028 |
 
 **ALL 10 seeds beat the previous high-topo baseline (sigma=0.875, valid=0.660 at topo=0.8).**
 
@@ -99,8 +99,8 @@ See `RESULTS.md` for full details. Summary: the recipe works at `ll_mon_topo = m
 
 | topo | mean sigma_theta | mean valid_fraction | seeds | Status |
 |---|---|---|---|---|
-| 0.20 | 0.55 | 0.79 | 4 | **baseline (best balance)** |
-| 0.15 | 0.43 (extract-mode) | 0.88 (extract-mode) | 4 | works (slightly degraded) |
+| 0.20 | 0.354 (extract-mode) | 0.912 (extract-mode) | 10 | **baseline (best balance)** |
+| 0.15 | 0.455 (extract-mode) | 0.893 (extract-mode) | 10 | works (slightly degraded) |
 | 0.10 | 0.76 (extract-mode) | 0.84 (extract-mode) | 3 | still works (substantially degraded) |
 | (high-topo 0.80) | 0.875 | 0.660 | reference | trivially works |
 

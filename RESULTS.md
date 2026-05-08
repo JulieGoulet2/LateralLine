@@ -18,32 +18,46 @@ All recipes use the same parameter set (see `BASELINE.md`); only the two topogra
 
 ### 0.20 — new baseline
 
-- **10 seeds (123–132)**, 10000 trials each (training-mode metrics)
-- Mean `sigma_theta = 0.53` ± 0.11 rad
-- Mean `valid_fraction = 0.80` ± 0.05
+- **10 seeds (123–132)**, 10000 trials each (extract-mode metrics)
+- Mean `sigma_theta = 0.354` ± 0.058 rad
+- Mean `valid_fraction = 0.912` ± 0.028
 - All 10 seeds beat the high-topo (0.8) baseline of sigma=0.875, valid=0.660
 - Per-network bands persist but at different x positions per seed → multi-seed averaging cleans the map at the population level
 
 | Seed | sigma_theta (rad) | valid_fraction |
 |------|-------------------|----------------|
-| 123  | 0.622             | 0.786          |
-| 124  | 0.480             | 0.817          |
-| 125  | 0.671             | 0.725          |
-| 126  | 0.427             | 0.853          |
-| 127  | 0.399             | 0.896          |
-| 128  | 0.649             | 0.779          |
-| 129  | 0.416             | 0.746          |
-| 130  | 0.486             | 0.853          |
-| 131  | 0.490             | 0.789          |
-| 132  | 0.635             | 0.787          |
-| **mean ± SD** | **0.53 ± 0.11** | **0.80 ± 0.05** |
+| 123  | 0.421             | 0.926          |
+| 124  | 0.401             | 0.888          |
+| 125  | 0.420             | 0.890          |
+| 126  | 0.323             | 0.902          |
+| 127  | 0.382             | 0.931          |
+| 128  | 0.336             | 0.891          |
+| 129  | 0.291             | 0.881          |
+| 130  | 0.293             | 0.960          |
+| 131  | 0.400             | 0.952          |
+| 132  | 0.267             | 0.901          |
+| **mean ± SD** | **0.354 ± 0.058** | **0.912 ± 0.028** |
 
-### 0.15 — degraded but still working (best individual seed metrics)
+### 0.15 — degraded but still working
 
-- 4 seeds (123, 124, 125, 126), 10000 trials each
-- Mean `sigma_theta = 0.43` ± 0.13 rad (extract-mode metric)
-- Mean `valid_fraction = 0.88` ± 0.03 (extract-mode metric)
-- All 4 seeds give sigma < 0.65; 3 of 4 give sigma < 0.5
+- **10 seeds (123–132)**, 10000 trials each (extract-mode metrics)
+- Mean `sigma_theta = 0.455` ± 0.094 rad
+- Mean `valid_fraction = 0.893` ± 0.024
+- All 10 seeds give valid_fraction > 0.86; 9 of 10 give sigma < 0.60
+
+| Seed | sigma_theta (rad) | valid_fraction |
+|------|-------------------|----------------|
+| 123  | 0.459             | 0.864          |
+| 124  | 0.580             | 0.880          |
+| 125  | 0.278             | 0.887          |
+| 126  | 0.583             | 0.896          |
+| 127  | 0.418             | 0.917          |
+| 128  | 0.398             | 0.903          |
+| 129  | 0.528             | 0.869          |
+| 130  | 0.477             | 0.916          |
+| 131  | 0.376             | 0.929          |
+| 132  | 0.453             | 0.864          |
+| **mean ± SD** | **0.455 ± 0.094** | **0.893 ± 0.024** |
 
 ### 0.10 — substantially degraded but recipe still produces a valid map
 
@@ -65,7 +79,7 @@ Two different ways of measuring `sigma_theta` and `valid_fraction`:
 
 Same network weights → both methods measure the same map quality, but extract-mode metrics are systematically better by ~0.15-0.20 in sigma_theta because the test phase isn't perturbed by training-induced noise in TS state.
 
-For fair comparison across topo values, the 0.15 and 0.10 results above use extract-mode. The 0.20 result uses training-mode (it was measured during the original Y2 multi-seed run). They are NOT directly comparable as numbers; the relative ordering (0.15 > 0.10 in quality, both worse than 0.20) is robust.
+All topo levels (0.10, 0.15, 0.20) now use extract-mode metrics for consistent comparison. The relative ordering is robust: 0.20 > 0.15 > 0.10 in map sharpness (lower sigma_theta), and valid_fraction stays high across all topo levels (> 0.84). Note: the 0.10 and 0.20 results are not directly comparable to old training-mode numbers in earlier notes; use only the extract-mode values in this table.
 
 ---
 
@@ -106,7 +120,7 @@ But the bands are at **different x positions in different seeds** (seed-dependen
 ## Caveats and limitations
 
 - All results use a single fixed test distance (`training_distance = 0.8 cm`). Generalization across distances has not been tested.
-- Statistics are based on 3-4 seeds at each topo. More seeds (8-10) would tighten the SD bars.
+- Statistics are based on 10 seeds at topo=0.20 and 0.15, but only 3 seeds at topo=0.10. The 0.10 SD bars are wider and should be interpreted cautiously.
 - The `0.10` extract-mode metric is based on 3 seeds (4th seed in the Y4 run died before completion — same crash pattern observed at Y2-multi).
 - All test sweeps use the same x range and stimulus protocol; cross-stimulus generalization not measured.
 
