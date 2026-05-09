@@ -189,15 +189,34 @@ def _sample_instantaneous_rates(
     distance_min_cm: float | None = None,
     distance_max_cm: float | None = None,
 ):
-    """One random hydrodynamic snapshot -> LL rates."""
-    if fixed_distance_cm is None:
-        d_cm = float(rng.normal(stim_params.mu_distance_cm, stim_params.sigma_distance_cm))
-    else:
+    """One random hydrodynamic snapshot -> LL rates.
+
+    Distance sampling rule (per call):
+      1. If ``fixed_distance_cm`` is set -> use that exact value.
+      2. Else if both ``distance_min_cm`` and ``distance_max_cm`` are set
+         AND ``min < max`` -> sample d ~ Uniform([min, max]).  This is the
+         multi-distance training mode (added 2026-05-08).
+      3. Else -> d ~ Normal(mu_distance_cm, sigma_distance_cm), then clamp
+         to [min, max] if either bound is provided.  This is the original
+         behaviour and is preserved for all single-distance baselines (where
+         the user passes min == max, e.g. 0.8, 0.8).
+    """
+    if fixed_distance_cm is not None:
         d_cm = float(fixed_distance_cm)
-    if distance_min_cm is not None:
-        d_cm = max(float(distance_min_cm), d_cm)
-    if distance_max_cm is not None:
-        d_cm = min(float(distance_max_cm), d_cm)
+    elif (
+        distance_min_cm is not None
+        and distance_max_cm is not None
+        and float(distance_min_cm) < float(distance_max_cm)
+    ):
+        # Multi-distance training: uniform over the requested range so each
+        # distance contributes equally to STDP weight updates.
+        d_cm = float(rng.uniform(float(distance_min_cm), float(distance_max_cm)))
+    else:
+        d_cm = float(rng.normal(stim_params.mu_distance_cm, stim_params.sigma_distance_cm))
+        if distance_min_cm is not None:
+            d_cm = max(float(distance_min_cm), d_cm)
+        if distance_max_cm is not None:
+            d_cm = min(float(distance_max_cm), d_cm)
     if fixed_direction is None:
         direction = 1.0 if rng.random() < 0.5 else -1.0
     else:
@@ -1194,13 +1213,22 @@ def main():
         "--training-distance-min-cm",
         type=float,
         default=None,
-        help="Override minimum training distance (cm) for snapshot sampling.",
+        help=(
+            "Override minimum training distance (cm) for snapshot sampling. "
+            "When used together with --training-distance-max-cm and min < max, "
+            "distance is sampled UNIFORMLY on [min, max] each trial "
+            "(multi-distance training, since 2026-05-08). "
+            "When min == max, distance is fixed at that value."
+        ),
     )
     parser.add_argument(
         "--training-distance-max-cm",
         type=float,
         default=None,
-        help="Override maximum training distance (cm) for snapshot sampling.",
+        help=(
+            "Override maximum training distance (cm) for snapshot sampling. "
+            "See --training-distance-min-cm for the sampling rule."
+        ),
     )
     parser.add_argument(
         "--ll-body-length-cm",
