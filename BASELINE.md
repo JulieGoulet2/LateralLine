@@ -101,7 +101,7 @@ See `RESULTS.md` for full details. Summary: the recipe works at `ll_mon_topo = m
 |---|---|---|---|---|
 | 0.20 | 0.354 (extract-mode) | 0.912 (extract-mode) | 10 | **baseline (best balance)** |
 | 0.15 | 0.455 (extract-mode) | 0.893 (extract-mode) | 10 | works (slightly degraded) |
-| 0.10 | 0.76 (extract-mode) | 0.84 (extract-mode) | 3 | still works (substantially degraded) |
+| 0.10 | 0.919 (extract-mode) | 0.839 (extract-mode) | 8 | unstable — 1/8 seeds fails |
 | (high-topo 0.80) | 0.875 | 0.660 | reference | trivially works |
 
 ---

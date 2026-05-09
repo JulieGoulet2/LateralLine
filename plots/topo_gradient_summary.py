@@ -21,9 +21,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # -----------------------------------------------------------------------
-# Per-seed data — extract-mode
-# Seeds 123–132 at topo=0.20 and topo=0.15 (Logs/extract_evaluation.log)
-# Seeds 123–125 at topo=0.10 — aggregate only (Y4 run, earlier session)
+# Per-seed data — all extract-mode
+# Seeds 123-132 at topo=0.20 and topo=0.15 (Logs/extract_evaluation.log)
+# Seeds 123, 126-132 at topo=0.10 (Logs/extract_topo010.log)
+#   (seeds 124, 125 unavailable — no saved checkpoints from old Y4 run)
 # -----------------------------------------------------------------------
 
 # topo = 0.20 — 10 seeds
@@ -34,9 +35,9 @@ valid_020 = np.array([0.926, 0.888, 0.890, 0.902, 0.931, 0.891, 0.881, 0.960, 0.
 sigma_015 = np.array([0.459, 0.580, 0.278, 0.583, 0.418, 0.398, 0.528, 0.477, 0.376, 0.453])
 valid_015 = np.array([0.864, 0.880, 0.887, 0.896, 0.917, 0.903, 0.869, 0.916, 0.929, 0.864])
 
-# topo = 0.10 — 3 seeds (aggregate from RESULTS.md)
-sigma_010_mean, sigma_010_sd = 0.76, 0.15
-valid_010_mean, valid_010_sd = 0.84, 0.01
+# topo = 0.10 — 8 seeds (123, 126, 127, 128, 129, 130, 131, 132)
+sigma_010 = np.array([1.482, 0.915, 0.775, 0.699, 0.834, 0.765, 0.770, 1.108])
+valid_010 = np.array([0.539, 0.860, 0.906, 0.884, 0.848, 0.889, 0.940, 0.844])
 
 # High-topo reference (single training run, topo = 0.80)
 ref_sigma = 0.875
@@ -49,21 +50,16 @@ topos = [0.10, 0.15, 0.20]
 x_pos = np.array(topos)
 x_ref = 0.80
 
-sigma_means = np.array([sigma_010_mean, sigma_015.mean(), sigma_020.mean()])
-sigma_sds = np.array([sigma_010_sd, sigma_015.std(ddof=1), sigma_020.std(ddof=1)])
+sigma_means = np.array([sigma_010.mean(), sigma_015.mean(), sigma_020.mean()])
+sigma_sds = np.array([sigma_010.std(ddof=1), sigma_015.std(ddof=1), sigma_020.std(ddof=1)])
 
-valid_means = np.array([valid_010_mean, valid_015.mean(), valid_020.mean()])
-valid_sds = np.array([valid_010_sd, valid_015.std(ddof=1), valid_020.std(ddof=1)])
+valid_means = np.array([valid_010.mean(), valid_015.mean(), valid_020.mean()])
+valid_sds = np.array([valid_010.std(ddof=1), valid_015.std(ddof=1), valid_020.std(ddof=1)])
 
 # -----------------------------------------------------------------------
 # Figure
 # -----------------------------------------------------------------------
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5))
-fig.suptitle(
-    "Somatotopic map quality vs MON topography strength\n"
-    "(extract-mode; all seeds; ll_mon_topo = mon_ts_topo)",
-    fontsize=12,
-)
 
 SEED_COLOR = "#2196F3"   # blue for individual seeds
 MEAN_COLOR = "#0D47A1"   # dark blue for mean ± SD
@@ -85,6 +81,7 @@ ax1.axhline(ref_sigma, color=REF_COLOR, linestyle="--", linewidth=1.4,
 ax1.axhline(np.pi / 2, color="lightgray", linestyle=":", linewidth=0.8,
             label="π/2 (chance level)")
 
+_scatter(ax1, 0.10, sigma_010, color=SEED_COLOR, alpha=0.4, s=22, zorder=2)
 _scatter(ax1, 0.15, sigma_015, color=SEED_COLOR, alpha=0.4, s=22, zorder=2)
 _scatter(ax1, 0.20, sigma_020, color=SEED_COLOR, alpha=0.4, s=22, zorder=2,
          label="Individual seeds")
@@ -97,13 +94,16 @@ ax1.errorbar(
 
 ax1.set_xlabel("topo  (ll_mon_topo = mon_ts_topo)", fontsize=10)
 ax1.set_ylabel("σ_θ  (rad)", fontsize=10)
-ax1.set_title("Map sharpness — σ_θ (lower = sharper)", fontsize=10)
 ax1.set_xticks(x_pos)
-ax1.set_xticklabels(["0.10\n(3 seeds)", "0.15\n(10 seeds)", "0.20\n(10 seeds)"])
+ax1.set_xticklabels(["0.10\n(8 seeds)", "0.15\n(10 seeds)", "0.20\n(10 seeds)"])
 ax1.set_xlim(0.06, 0.25)
-ax1.set_ylim(0, 1.1)
+ax1.set_ylim(0, 1.7)
 ax1.legend(fontsize=8, loc="upper right")
 ax1.grid(axis="y", alpha=0.3)
+
+# Panel label "A"
+ax1.text(-0.12, 1.05, "A", transform=ax1.transAxes,
+         fontsize=16, fontweight="bold", va="top", ha="left")
 
 # ============================================================
 # RIGHT panel — valid_fraction (higher = more reliable map)
@@ -113,6 +113,7 @@ ax2.axhline(ref_valid, color=REF_COLOR, linestyle="--", linewidth=1.4,
 ax2.axhline(0.60, color="lightgray", linestyle=":", linewidth=0.8,
             label="Threshold (0.60)")
 
+_scatter(ax2, 0.10, valid_010, color=SEED_COLOR, alpha=0.4, s=22, zorder=2)
 _scatter(ax2, 0.15, valid_015, color=SEED_COLOR, alpha=0.4, s=22, zorder=2)
 _scatter(ax2, 0.20, valid_020, color=SEED_COLOR, alpha=0.4, s=22, zorder=2,
          label="Individual seeds")
@@ -125,13 +126,16 @@ ax2.errorbar(
 
 ax2.set_xlabel("topo  (ll_mon_topo = mon_ts_topo)", fontsize=10)
 ax2.set_ylabel("valid_fraction", fontsize=10)
-ax2.set_title("Map reliability — valid_fraction (higher = better)", fontsize=10)
 ax2.set_xticks(x_pos)
-ax2.set_xticklabels(["0.10\n(3 seeds)", "0.15\n(10 seeds)", "0.20\n(10 seeds)"])
+ax2.set_xticklabels(["0.10\n(8 seeds)", "0.15\n(10 seeds)", "0.20\n(10 seeds)"])
 ax2.set_xlim(0.06, 0.25)
 ax2.set_ylim(0.40, 1.02)
 ax2.legend(fontsize=8, loc="lower right")
 ax2.grid(axis="y", alpha=0.3)
+
+# Panel label "B"
+ax2.text(-0.12, 1.05, "B", transform=ax2.transAxes,
+         fontsize=16, fontweight="bold", va="top", ha="left")
 
 # ============================================================
 # Save
