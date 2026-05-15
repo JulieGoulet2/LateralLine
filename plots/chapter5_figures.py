@@ -124,6 +124,55 @@ def fig51a():
 
 
 # =============================================================
+# Figure 5.1a' — Single-distance vs Multi-distance training comparison
+#   (sanity check: is the σ_θ minimum at D=0.8 an artifact of training there,
+#    or is D=0.8 simply the cleanest stimulus geometry?)
+# =============================================================
+def fig51a_multidist():
+    sweeps = {
+        "topo020":   ("#1976D2", "Single-D training (D = 0.8 cm)"),
+        "multidist": ("#E65100", "Multi-D training (D ∈ [0.6, 1.2] cm)"),
+    }
+
+    fig, ax = plt.subplots(figsize=(7, 5))
+
+    for label, (color, legend) in sweeps.items():
+        sweep = _collect_sweep(label)
+        if not sweep:
+            print(f"  ! Fig 5.1a': no data for {label}")
+            continue
+        D, mean, sd = _per_distance_arrays(sweep, "sigma_theta_rad")
+        D_over_L = D / BODY_LEN_CM
+        ax.plot(D_over_L, mean, "-o", color=color, markersize=5,
+                label=legend, linewidth=1.8)
+        ax.fill_between(D_over_L, mean - sd, mean + sd, color=color, alpha=0.18)
+
+    # Shaded band marking the multi-D training range.
+    ax.axvspan(0.6 / BODY_LEN_CM, 1.2 / BODY_LEN_CM, color="#E65100", alpha=0.07,
+               label="multi-D training range")
+    ax.axvline(0.8 / BODY_LEN_CM, color="black", linestyle="--", linewidth=0.8,
+               alpha=0.5, label="single-D training D = 0.8 cm")
+    ax.axhline(np.pi / 2, color="gray", linestyle=":", linewidth=0.8,
+               label="π/2 (chance)")
+
+    ax.set_xlabel("Stimulus distance D / L  (L = 4 cm)", fontsize=11)
+    ax.set_ylabel("Somatotopic error  σ_θ  (rad)", fontsize=11)
+    ax.set_title("Fig 5.1a' — U-shape is geometry, not training-distance overfitting\n"
+                 "topo = 0.20 in both. Multi-D pilot trained at 3 seeds, d ∈ [0.6, 1.2] cm uniform",
+                 fontsize=11)
+    ax.legend(loc="upper left", fontsize=9, framealpha=0.9)
+    ax.grid(alpha=0.3)
+    ax.set_ylim(0, np.pi / 2 + 0.3)
+    ax.set_xlim(0, None)
+
+    fig.tight_layout()
+    out_path = PIC_DIR / "ch5_fig51a_singleD_vs_multiD.png"
+    fig.savefig(out_path, dpi=180, bbox_inches="tight")
+    print(f"Saved: {out_path}")
+    plt.close(fig)
+
+
+# =============================================================
 # Figure 5.4 — Sharpening σ_LL/σ_TS vs D, different σ_noise
 # (Population-level sharpening; in our model individual-cell σ_w
 #  is NOT sharper in TS due to vertical bands, but the population
@@ -428,6 +477,7 @@ def fig53():
 if __name__ == "__main__":
     print("Generating chapter 5 figures...\n")
     fig51a()
+    fig51a_multidist()
     fig51b()
     fig51b_comparison()
     fig53()
