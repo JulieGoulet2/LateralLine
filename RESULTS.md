@@ -57,12 +57,16 @@ For all experiments in the topo gradient below, the training distance is **fixed
 
 ### Plasticity
 
-Both LL → MON and MON → TS use **multiplicative STDP** (Brian2 implementation in `ll_stdp_brian2.py`). The current BASELINE values:
+The two plastic synapses use **different STDP rules**, a fact discovered during the 2026-05-15 code review:
 
-| Synapse | apre (LTP) | apost (LTD) | wmax | w_init | w_jitter | homeo η |
-|---|---|---|---|---|---|---|
-| LL → MON | 0.010 | -0.0105 | 20 mV | 10 mV | **8 mV** | **0.005** |
-| MON → TS | 0.010 | -0.006 | 0.028 | 0.020 | 0.005 | **0.001** |
+| Synapse | STDP rule | apre (LTP) | apost (LTD) | wmax | w_init | w_jitter | homeo η |
+|---|---|---|---|---|---|---|---|
+| **LL → MON** | **Multiplicative** (`Δw_LTP = apre × (wmax - w)`, `Δw_LTD = apost × w`) | 0.010 | -0.0105 | 20 mV | 10 mV | **8 mV** | **0.005** |
+| **MON → TS** | **Additive** (`Δw_LTP = apre`, `Δw_LTD = apost`) | 0.010 | -0.006 | 0.028 | 0.020 | 0.005 | **0.001** |
+
+**Why LL → MON is multiplicative.** Additive STDP with net potentiation (apre > |apost|) drives every weight to wmax, saturating the MON layer and destroying the somatotopic map. The multiplicative form self-stabilises at an intermediate weight via the weight-dependent scaling. We verified this in April 2026 — there is a regression test in `tests/` that catches reversal of the rule.
+
+**Why MON → TS is additive (and OK).** The recipe at this synapse pairs additive STDP with the **slow multiplicative incoming-weight homeostasis** described below (`mon_ts_homeo_eta = 0.001`). The homeostasis rescales Σ_in w per TS cell back toward its initial target every 10 trials, which prevents the additive-STDP runaway saturation. The combined dynamic (additive STDP + multiplicative homeostasis) is what gives the current baseline its sharpness. Changing this synapse to multiplicative would require re-tuning the entire recipe (apre/apost amplitudes, homeo η, gain) and re-running the topo gradient and chapter-5 sweeps — a scientific decision deferred. In-code documentation: see the comment block on the `s_mon_ts = b2.Synapses(...)` definition in `ll_stdp_brian2.py`. Memory note: `~/.claude/projects/<...>/memory/project_stdp_rules.md`.
 
 The **wide LL → MON initial jitter (8 mV, range 2–18 mV)** is essential — it breaks initial symmetry between MON cells so that STDP has a non-trivial bias to amplify.
 
@@ -349,7 +353,7 @@ The fix had to attack the MON layer first (heterogeneous init + homeostasis), th
 
 ### Key dead ends — what did NOT work
 
-- **LTD-biased STDP without homeostasis**: multiplicative STDP equilibrium is fixed by the apre/apost ratio; uncorrelated weights settle in the middle, no bimodal weight distribution emerges.
+- **LTD-biased STDP without homeostasis**: multiplicative STDP equilibrium (LL → MON) is fixed by the apre/apost ratio; uncorrelated weights settle in the middle, no bimodal weight distribution emerges. Homeostasis is what breaks this equilibrium and forces specialisation.
 - **Sparser LL → MON anatomy alone** (`in_degree = 7` instead of 10): starves MON (rate drops from ~9 to ~2 Hz), TS goes silent.
 - **Increased gain alone**: amplifies noise as much as signal if MON itself is not selective.
 - **Stronger TS lateral inhibition alone**: addresses a symptom (band co-firing in TS) not the cause (MON multimodal preferences).
