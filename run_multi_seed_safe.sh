@@ -95,7 +95,8 @@ for ((k=0; k<MULTI_SEED; k++)); do
   echo "--- $(date) Seed ${SEED} starting ---" | tee -a "$SUMMARY_LOG"
   touch "$SEED_LOG"
 
-  if env PYTHONUNBUFFERED=1 python -u ll_stdp_brian2.py \
+  PYTHON="${PYTHON:-$(command -v python || command -v python3 || echo /Users/juliegoulet/anaconda3/bin/python)}"
+  if env PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 "$PYTHON" -u ll_stdp_brian2.py \
       "${PASS_ARGS[@]}" --seed-start "$SEED" --multi-seed 1 \
       >> "$SEED_LOG" 2>&1; then
     echo "--- $(date) Seed ${SEED} DONE ---" | tee -a "$SUMMARY_LOG"

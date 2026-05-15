@@ -29,6 +29,7 @@ class NetworkParams:
     training_position_hold_s: float = 0.05       # how long each snapshot position is held during training (s)    --training-position-hold-s
     training_noise_scale_early: float = 0.0      # LL noise std during early training (fraction of sigma_noise)  --training-noise-early
     training_noise_scale_late: float = 0.0       # LL noise std during late training (fraction of sigma_noise)   --training-noise-late
+    test_ll_noise_hz: float = 0.0                # Extra Gaussian noise (Hz, SD) added to LL rates during test    --test-ll-noise-hz
     training_noise_switch_fraction: float = 0.5  # training fraction where noise transitions early→late (0..1)   --training-noise-switch
     training_ordered_sweeps: bool = True          # True: sweep x forward/backward; False: random shuffle         --training-ordered-sweeps / --no-training-ordered-sweeps
     training_fixed_distance: bool = True          # fix sphere distance at mu_distance_cm (no distance jitter)    --training-fixed-distance / --no-training-fixed-distance

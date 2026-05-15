@@ -436,6 +436,73 @@ def _circ_std(x: np.ndarray) -> float:
     return float(np.sqrt(-2.0 * np.log(r)))
 
 
+def _tuning_fwhm_cm(
+    spike_t_s: np.ndarray,
+    spike_i: np.ndarray,
+    n_neurons: int,
+    test_t_s: np.ndarray,
+    test_x_cm: np.ndarray,
+    train_start_s: float,
+    n_bins: int = 50,
+    min_peak_hz: float = 1.0,
+) -> tuple[float, float, int]:
+    """
+    Compute mean FWHM (full-width at half-maximum) tuning width in cm.
+
+    Returns (mean_fwhm_cm, sd_fwhm_cm, n_valid_neurons).
+    Neurons whose peak firing rate < min_peak_hz are excluded.
+    """
+    if len(test_t_s) < 2:
+        return float("nan"), float("nan"), 0
+
+    x_min, x_max = float(test_x_cm.min()), float(test_x_cm.max())
+    if x_max <= x_min:
+        return float("nan"), float("nan"), 0
+
+    bin_edges = np.linspace(x_min, x_max, n_bins + 1)
+    bin_width_cm = bin_edges[1] - bin_edges[0]
+    dt_s = float(test_t_s[1] - test_t_s[0])
+
+    # Time spent in each x-bin (seconds).
+    x_bin_idx = np.clip(np.digitize(test_x_cm, bin_edges) - 1, 0, n_bins - 1)
+    time_in_bin = np.bincount(x_bin_idx, minlength=n_bins) * dt_s
+
+    # Map each test-phase spike to its x-bin.
+    t_rel = spike_t_s - train_start_s
+    valid = t_rel >= 0.0
+    t_rel = t_rel[valid]
+    sp_i = spike_i[valid]
+
+    t_idx = np.clip(np.floor(t_rel / dt_s).astype(int), 0, len(test_x_cm) - 1)
+    sp_x_bin = x_bin_idx[t_idx]
+
+    counts = np.zeros((n_neurons, n_bins), dtype=float)
+    mask = (sp_i >= 0) & (sp_i < n_neurons)
+    np.add.at(counts, (sp_i[mask], sp_x_bin[mask]), 1.0)
+
+    safe_time = np.maximum(time_in_bin, 1e-9)
+    rates = counts / safe_time[np.newaxis, :]  # (n_neurons, n_bins), Hz
+
+    fwhms = []
+    for n in range(n_neurons):
+        r = rates[n]
+        peak = float(r.max())
+        if peak < min_peak_hz:
+            continue
+        half = peak / 2.0
+        above = r >= half
+        if not np.any(above):
+            continue
+        # Width = total number of bins above half-max × bin width.
+        fwhm_cm = float(np.count_nonzero(above)) * bin_width_cm
+        fwhms.append(fwhm_cm)
+
+    if len(fwhms) < 2:
+        return float("nan"), float("nan"), len(fwhms)
+    arr = np.array(fwhms)
+    return float(arr.mean()), float(arr.std(ddof=1)), len(fwhms)
+
+
 def pv_map_quality_from_ts_spikes(
     ts_spike_t_s: np.ndarray,
     ts_spike_i: np.ndarray,
@@ -577,7 +644,18 @@ def _save_mid_checkpoint(ckpt_path, actual_trial_idx, s_mon_ts, ll_mon_use_stdp,
         data["ll_mon_w_mV"] = np.array(s_ll_mon.w[:] / b2.mV, dtype=float, copy=True)
     for key, val in stats.items():
         data[key] = np.asarray(val)
-    np.savez_compressed(str(ckpt_path), **data)
+    # Delete the old file first — on macOS, overwriting a file that carries the
+    # com.apple.provenance extended attribute raises PermissionError (errno 1).
+    # Writing to a fresh .npz path then renaming avoids that security check.
+    # NOTE: np.savez_compressed appends .npz if the path doesn't end in .npz,
+    # so the temp name must already end in .npz.
+    tmp_path = ckpt_path.parent / ("_tmp_" + ckpt_path.name)  # _tmp_mid_checkpoint.npz
+    if tmp_path.exists():
+        tmp_path.unlink()
+    np.savez_compressed(str(tmp_path), **data)
+    if ckpt_path.exists():
+        ckpt_path.unlink()
+    tmp_path.rename(ckpt_path)
     print(f"[checkpoint] saved trial {actual_trial_idx} → {ckpt_path.name}", flush=True)
 
 
@@ -599,6 +677,13 @@ def run_spatial_two_stage_model(params: NetworkParams, checkpoint_path=None, res
     train_rates, train_samples, train_x_cm = make_training_rates(params)
     test_sim = make_test_rates_held_snapshots(params) if bool(params.test_using_held_snapshots) else make_test_rates(params)
     test_rates = test_sim["rates_hz"]
+
+    # Iris-Hydi-style test-phase noise: add Gaussian noise (SD = test_ll_noise_hz) to LL rates.
+    # Independent per-neuron per-timestep; clipped to [0, +inf). seed offset 8888 keeps reproducibility.
+    if float(params.test_ll_noise_hz) > 0.0:
+        _noise_rng = np.random.default_rng(int(params.seed) + 8888)
+        _noise = _noise_rng.normal(0.0, float(params.test_ll_noise_hz), size=test_rates.shape)
+        test_rates = np.clip(test_rates + _noise, 0.0, None)
 
     # If resuming, drop already-completed trials from the stimulus.
     trial_steps = int(np.round(params.trial_duration_s / params.dt_s))
@@ -1006,6 +1091,38 @@ def run_spatial_two_stage_model(params: NetworkParams, checkpoint_path=None, res
 
     stab_t = estimate_stabilization_time(np.asarray(checkpoint_t_s), np.asarray(w_mean_series))
 
+    # Tuning widths (FWHM in cm) for LL, MON, and TS during the test sweep.
+    _ll_t = np.asarray(sp_ll.t / b2.second, dtype=float)
+    _ll_i = np.asarray(sp_ll.i, dtype=int)
+    _mon_t = np.asarray(sp_mon.t / b2.second, dtype=float)
+    _mon_i = np.asarray(sp_mon.i, dtype=int)
+    _ts_t = np.asarray(sp_ts.t / b2.second, dtype=float)
+    _ts_i = np.asarray(sp_ts.i, dtype=int)
+    _t_s = np.asarray(test_sim["t_s"], dtype=float)
+    _x_cm = np.asarray(test_sim["X_cm"], dtype=float)
+
+    tw_ll_mean, tw_ll_sd, tw_ll_n = _tuning_fwhm_cm(
+        _ll_t, _ll_i, params.n_ll, _t_s, _x_cm, train_duration_s)
+    tw_mon_mean, tw_mon_sd, tw_mon_n = _tuning_fwhm_cm(
+        _mon_t, _mon_i, params.n_mon, _t_s, _x_cm, train_duration_s)
+    tw_ts_mean, tw_ts_sd, tw_ts_n = _tuning_fwhm_cm(
+        _ts_t, _ts_i, params.n_ts, _t_s, _x_cm, train_duration_s)
+
+    # LL population-vector quality — gives delta_trial for the afferent layer.
+    pvq_ll = pv_map_quality_from_ts_spikes(
+        ts_spike_t_s=_ll_t,
+        ts_spike_i=_ll_i,
+        n_ts=params.n_ll,
+        test_t_s=_t_s,
+        test_x_cm=_x_cm,
+        lateral_line_len_cm=float(params.ll_body_length_cm),
+        test_start_s=train_duration_s,
+        dt_s=params.dt_s,
+        n_pos_bins=min(100, params.n_ll),
+        eval_x_min_cm=params.eval_x_min_cm,
+        eval_x_max_cm=params.eval_x_max_cm,
+    )
+
     ll_t = np.asarray(sp_ll.t / b2.second, dtype=float)
     mon_t = np.asarray(sp_mon.t / b2.second, dtype=float)
     ts_t_abs = np.asarray(sp_ts.t / b2.second, dtype=float)
@@ -1078,6 +1195,17 @@ def run_spatial_two_stage_model(params: NetworkParams, checkpoint_path=None, res
         "pv_sigma_theta": pvq["sigma_theta"],
         "pv_delta_trial": pvq["delta_trial"],
         "pv_valid_fraction": pvq["valid_fraction"],
+        "pv_ll_sigma_theta": pvq_ll["sigma_theta"],
+        "pv_ll_delta_trial": pvq_ll["delta_trial"],
+        "tuning_fwhm_ll_cm_mean": tw_ll_mean,
+        "tuning_fwhm_ll_cm_sd": tw_ll_sd,
+        "tuning_fwhm_ll_n_valid": tw_ll_n,
+        "tuning_fwhm_mon_cm_mean": tw_mon_mean,
+        "tuning_fwhm_mon_cm_sd": tw_mon_sd,
+        "tuning_fwhm_mon_n_valid": tw_mon_n,
+        "tuning_fwhm_ts_cm_mean": tw_ts_mean,
+        "tuning_fwhm_ts_cm_sd": tw_ts_sd,
+        "tuning_fwhm_ts_n_valid": tw_ts_n,
         "train_duration_s": train_duration_s,
         "test_duration_s": test_duration_s,
         "total_duration_s": total_duration_s,
@@ -1472,6 +1600,7 @@ def main():
     parser.add_argument("--training-noise-early", type=float, default=None, help="LL noise std during early training (fraction of sigma_noise).")
     parser.add_argument("--training-noise-late", type=float, default=None, help="LL noise std during late training (fraction of sigma_noise).")
     parser.add_argument("--training-noise-switch", type=float, default=None, help="Training fraction where noise transitions early→late (0..1).")
+    parser.add_argument("--test-ll-noise-hz", type=float, default=None, help="Gaussian noise (Hz, SD) added to LL rates during test phase only.")
     parser.add_argument("--training-ordered-sweeps", action=argparse.BooleanOptionalAction, default=None, help="Forward/backward sweeps (True) or random shuffle (False).")
     parser.add_argument("--training-fixed-distance", action=argparse.BooleanOptionalAction, default=None, help="Fix sphere distance at mu_distance_cm during training (no jitter).")
     parser.add_argument("--training-bidirectional", action=argparse.BooleanOptionalAction, default=None, help="Alternate sphere direction each snapshot.")
@@ -1530,6 +1659,7 @@ def main():
         ("training_noise_early",      "training_noise_scale_early",          lambda x: float(max(0.0, x))),
         ("training_noise_late",       "training_noise_scale_late",           lambda x: float(max(0.0, x))),
         ("training_noise_switch",     "training_noise_switch_fraction",      lambda x: float(np.clip(x, 0.0, 1.0))),
+        ("test_ll_noise_hz",          "test_ll_noise_hz",                    lambda x: float(max(0.0, x))),
         ("training_distance_min_cm",  "training_distance_min_cm",            lambda x: float(max(0.0, x))),
         ("training_distance_max_cm",  "training_distance_max_cm",            lambda x: float(max(0.0, x))),
         # stimulus
@@ -1753,9 +1883,16 @@ def main():
             json.dump(
                 {
                     "seed": int(p_run.seed),
+                    "distance_cm": float(p_run.distance_cm),
+                    "test_ll_noise_hz": float(p_run.test_ll_noise_hz),
                     "sigma_theta_rad": float(r["pv_sigma_theta"]),
                     "valid_fraction": float(r["pv_valid_fraction"]),
                     "delta_trial_rad": float(r["pv_delta_trial"]),
+                    "sigma_theta_ll_rad": float(r["pv_ll_sigma_theta"]),
+                    "delta_trial_ll_rad": float(r["pv_ll_delta_trial"]),
+                    "sigma_w_ll_cm": float(r["tuning_fwhm_ll_cm_mean"]),
+                    "sigma_w_mon_cm": float(r["tuning_fwhm_mon_cm_mean"]),
+                    "sigma_w_ts_cm": float(r["tuning_fwhm_ts_cm_mean"]),
                 },
                 _f,
                 indent=2,

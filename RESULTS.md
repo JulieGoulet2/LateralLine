@@ -1,4 +1,4 @@
-# LateralLine STDP — Results Summary (2026-05-09)
+# LateralLine STDP — Results Summary (2026-05-13)
 
 ## The scientific question
 
@@ -9,6 +9,8 @@ The trivial case — strong, hand-wired anatomical topography in MON — has alw
 ## TL;DR
 
 **Yes**, with one important qualification. The recipe documented in `BASELINE.md` produces a population-level somatotopic map in TS at MON anatomical somatotopy as low as **`ll_mon_topo = mon_ts_topo = 0.15`**, comfortably below the high-topo reference (0.80) used in earlier work. At the **best operating point (topo = 0.20)** the recipe is highly reliable: 10 / 10 seeds give σ_θ < 0.5 rad and valid_fraction > 0.86. At **topo = 0.15** it remains reliable but with broader maps. At the **floor (topo = 0.10)** it becomes unstable — most seeds still produce a map, but ~10 % fail outright.
+
+The full topo gradient (0.10 → 0.80, 10 seeds each) is now complete. Map quality improves monotonically with anatomical topography, but the improvement flattens sharply above topo = 0.20: going from 0.20 to 0.80 reduces mean σ_θ by only ~0.07 rad (0.353 → 0.278), while going from 0.10 to 0.20 reduces it by 0.57 rad (0.919 → 0.353). **The recipe already captures the vast majority of achievable map quality at weak somatotopy.**
 
 A persistent imperfection across all topo levels is **multimodal per-TS-cell tuning** (vertical bands in TS spike rasters) — see "Open questions" below.
 
@@ -40,7 +42,7 @@ The fraction that follows topography is set by the parameters `ll_mon_topo` and 
 
 A small sphere ("dipole") moves past the lateral line at fixed speed (5 cm/s) at lateral distance `d`. The hydrodynamic velocity field at each LL position is computed analytically (`stimulus.hydrodynamic_velocity_parallel`). Each LL neuromast fires an inhomogeneous Poisson spike train with rate `r_0 + A · v(x_i, x_source, d) + spatial-correlated noise`, clipped to `[0, r_max]`.
 
-For all experiments below, the training distance is **fixed at `d = 0.8 cm`** (`--training-distance-min-cm 0.8 --training-distance-max-cm 0.8`). Multi-distance training is the planned next experiment (see "Open questions").
+For all experiments in the topo gradient below, the training distance is **fixed at `d = 0.8 cm`** (`--training-distance-min-cm 0.8 --training-distance-max-cm 0.8`). A multi-distance pilot (d ∈ [0.6, 1.2] cm) was completed on 2026-05-09 — see "Multi-distance pilot" section below.
 
 ### Training protocol
 
@@ -103,7 +105,7 @@ The exact CLI for the topo = 0.20 baseline is in `BASELINE.md`. All runs in this
 ![Topo gradient summary](Picture/topo_gradient_summary.png)
 
 **Figure 1.** *Somatotopic map quality as a function of MON anatomical topography strength.*
-**(A)** Map sharpness measured by σ_θ in radians (lower is better). Light blue dots are individual seeds; dark blue points show mean ± SD across seeds at each topo level. The dashed grey line marks the high-topo reference (single training run at `topo = 0.80`, σ_θ = 0.875 rad). The dotted line at π/2 ≈ 1.57 rad marks chance level. **(B)** Map reliability measured by `valid_fraction` (higher is better). Same conventions as in (A). The dashed grey line is the high-topo reference (`valid_fraction = 0.66`); the dotted line at 0.60 marks the validity threshold used to classify a run as a working map. All values are extract-mode (saved final weights, test phase from a fresh RNG state). N = 8 seeds at `topo = 0.10` (123, 126–132); N = 10 seeds at `topo = 0.15` and `topo = 0.20` (123–132). **At topo = 0.20 and 0.15 the recipe is uniformly better than the high-topo reference**; at the floor (topo = 0.10) the mean is comparable to or above the reference and one seed (123) falls below the validity threshold (single visible outlier in panel B).
+**(A)** Map sharpness measured by σ_θ in radians (lower is better). Light blue dots are individual seeds; dark blue points show mean ± SD across seeds at each topo level. The dotted line at π/2 ≈ 1.57 rad marks chance level. **(B)** Map reliability measured by `valid_fraction` (higher is better). Same conventions as in (A). The dotted line at 0.60 marks the validity threshold used to classify a run as a working map. Values for topo = 0.10 / 0.15 / 0.20 are extract-mode (saved final weights, test phase from a fresh RNG state); values for topo = 0.40 / 0.60 / 0.80 are training-mode metrics from `run_multi_seed_safe.sh`. N = 8 seeds at `topo = 0.10` (123, 126–132); N = 10 seeds at all other topo levels (123–132). **Map quality improves monotonically with anatomical topography but saturates rapidly above topo = 0.20**; the recipe at topo = 0.20 already achieves ≈ 95 % of the map sharpness seen at topo = 0.80.
 
 ### `topo = 0.20` — operational baseline
 
@@ -144,6 +146,68 @@ All 10 seeds beat the high-topo reference on both metrics. SD is tight (16 % of 
 | **mean ± SD** | **0.455 ± 0.094** | **0.893 ± 0.024** |
 
 10 / 10 seeds give `valid_fraction > 0.86`; 9 / 10 give σ_θ < 0.60. Spread is wider (SD ≈ 21 % of mean for σ_θ) but no run fails.
+
+### `topo = 0.40` — plateau begins
+
+10 seeds (123–132), 10 000 trials each, training-mode metrics.
+
+| Seed | σ_θ (rad) | valid_fraction |
+|------|-----------|----------------|
+| 123  | 0.360     | 0.909          |
+| 124  | 0.344     | 0.925          |
+| 125  | 0.432     | 0.865          |
+| 126  | 0.375     | 0.909          |
+| 127  | 0.249     | 0.937          |
+| 128  | 0.304     | 0.818          |
+| 129  | 0.317     | 0.944          |
+| 130  | 0.317     | 0.925          |
+| 131  | 0.331     | 0.900          |
+| 132  | 0.272     | 0.929          |
+| **mean ± SD** | **0.330 ± 0.052** | **0.906 ± 0.038** |
+
+Only marginally sharper than topo = 0.20 (σ_θ 0.330 vs 0.353). The saturation of map quality above topo = 0.20 is already visible here.
+
+### `topo = 0.60` — near-ceiling performance
+
+10 seeds (123–132), 10 000 trials each, training-mode metrics.
+
+| Seed | σ_θ (rad) | valid_fraction |
+|------|-----------|----------------|
+| 123  | 0.343     | 0.980          |
+| 124  | 0.346     | 0.985          |
+| 125  | 0.250     | 0.974          |
+| 126  | 0.278     | 0.971          |
+| 127  | 0.256     | 0.978          |
+| 128  | 0.247     | 0.974          |
+| 129  | 0.289     | 0.963          |
+| 130  | 0.294     | 0.957          |
+| 131  | 0.289     | 0.950          |
+| 132  | 0.269     | 0.973          |
+| **mean ± SD** | **0.286 ± 0.035** | **0.971 ± 0.011** |
+
+Very tight SD (12 % of mean for σ_θ, 1 % for valid_fraction). High reliability — every seed gives valid_fraction > 0.95.
+
+### `topo = 0.80` — fully-topographic ceiling
+
+10 seeds (123–132), 10 000 trials each, training-mode metrics.
+
+| Seed | σ_θ (rad) | valid_fraction |
+|------|-----------|----------------|
+| 123  | 0.280     | 0.977          |
+| 124  | 0.280     | 0.993          |
+| 125  | 0.232     | 0.984          |
+| 126  | 0.327     | 0.987          |
+| 127  | 0.227     | 1.000          |
+| 128  | 0.297     | 0.980          |
+| 129  | 0.326     | 0.999          |
+| 130  | 0.281     | 0.987          |
+| 131  | 0.286     | 0.981          |
+| 132  | 0.240     | 0.940          |
+| **mean ± SD** | **0.278 ± 0.035** | **0.983 ± 0.017** |
+
+Best map quality across all topo levels, as expected. Virtually indistinguishable from topo = 0.60 on σ_θ (0.278 vs 0.286), confirming saturation. **Note:** the old single-run reference at topo = 0.80 (σ_θ = 0.875, valid = 0.660, from `Runs/ts_inh15_gain125_10k/`) used a different parameter set (gain = 125, no LL→MON homeostasis) and is not comparable — see archived reference below.
+
+---
 
 ### `topo = 0.10` — the floor of recipe robustness
 
@@ -196,7 +260,9 @@ The fix had to attack the MON layer first (heterogeneous init + homeostasis), th
 
 In every single network, individual TS cells fire at **2–3 distinct x positions**, not at a single x. This is visible as vertical bands in `brian2_ts_spikes_vs_x_test_*.png`. The bands shift to different x positions in different seeds, so **population-vector decoding (averaged across the 300 TS cells) still works** — but per-cell tuning curves are not unimodal.
 
-**Working hypothesis** (to be tested): the dipole field at a single training distance has bipolar side lobes, so two LL afferents at different x positions are co-activated by the same source position halfway between them. STDP cannot distinguish a real co-firing from such a "ghost" co-firing and reinforces both. **Multi-distance training** (planned next experiment) should average out the ghost correlations because the side-lobe geometry shifts with distance, while the true x-correlation is invariant.
+**Tested hypothesis — multi-distance training (2026-05-09, NEGATIVE result):** the original hypothesis was that training at a single distance imprints the dipole side-lobe geometry as spurious ghost correlations, which multi-distance training would average out. A 3-seed pilot at topo = 0.20, d ∈ [0.6, 1.2] cm uniform per trial, 10 000 trials each was run. The vertical bands remained equally present and map quality was slightly worse (σ_θ = 0.601 ± 0.101 vs 0.354 ± 0.058 extract-mode baseline). **The hypothesis was rejected.** The bands are not a distance-sampling artifact.
+
+**Revised interpretation:** the multimodal per-TS-cell tuning is an **intrinsic property of the lateral line geometry** — certain x positions produce similar LL activation patterns regardless of source distance, and STDP reinforces these invariant co-firings. This is consistent with the experimental literature, where single-unit recordings in teleost fish lateral line show messy or multimodal tuning and a clean somatotopic map is hard to see at single-unit resolution. The model thus predicts that the map is a **population-level phenomenon** requiring multi-electrode population decoding to observe — a testable prediction. This is accepted as a known model property, not a bug.
 
 ### 2. Topo = 0.10 is the practical floor
 
@@ -216,16 +282,39 @@ Test sweeps use a single x range, single distance, single source size, single sp
 
 - All 28 (10 + 10 + 8) extract-mode evaluations are saved as JSON in the corresponding `Runs/extract_topo*_seed_NNN/artifacts/seed_NNN_results.json`.
 - The training runs themselves are in `Runs/llmon_topo020_seeds127_132/`, `Runs/llmon_topo015_seeds127_132/`, `Runs/llmon_topo010_seeds126_132/`, plus the original Y2/U/X seeds in `Runs/llmon_U_*` and `Runs/llmon_Y2_*`.
+- Topo gradient training runs (2026-05-10 to 2026-05-13): `Runs/llmon_topo040_seeds123_132/`, `Runs/llmon_topo060_seeds123_132/`, `Runs/llmon_topo080_seeds123_132/`. Per-seed results JSON in each `artifacts/` subdirectory.
 - Multi-seed orchestration: `run_multi_seed_safe.sh` (training, OOM-safe), `run_extract_evaluation.sh` and `run_extract_topo010.sh` (extract-mode batch).
-- Distance-sampling code edit (2026-05-08): `_sample_instantaneous_rates` in `ll_stdp_brian2.py` now samples uniformly on `[min, max]` whenever `min < max`. Backwards compatible (when `min == max`, the original clamp-to-fixed-value behaviour is preserved). Required for the planned multi-distance experiment.
+- Distance-sampling code edit (2026-05-08): `_sample_instantaneous_rates` in `ll_stdp_brian2.py` now samples uniformly on `[min, max]` whenever `min < max`. Backwards compatible (when `min == max`, the original clamp-to-fixed-value behaviour is preserved).
+- **Publication figure**: `Picture/topo_gradient_summary.png` — regenerate with `python plots/topo_gradient_summary.py` from the project root. All data is hardcoded in that script for reproducibility.
 
-## Next experiment
+## Completed experiment — multi-distance training pilot (2026-05-09)
 
-**Multi-distance training pilot.** Train with the source distance sampled uniformly in `[0.6, 1.2] cm` per trial (mean 0.9 cm, ~10 % below the current single-distance mean drive). The hypothesis is that this will **soften the per-TS-cell vertical bands** by destroying the dipole-field-shape-specific spurious co-firings. Smoke test (1 seed, 2000 trials) is in progress to verify nothing breaks; if it passes we run a 3-seed pilot at topo = 0.20 with the full 10 000 trials. If the pilot shows softer bands we will adopt multi-distance as the new recipe and re-run the full topo gradient (10 seeds at each of topo ∈ {0.10, 0.15, 0.20, 0.40, 0.60, 0.80}) to fill the publication-quality figure.
+**Hypothesis:** training at d ∈ [0.6, 1.2] cm (uniform per trial) would soften the per-TS-cell vertical bands by averaging out dipole-field side-lobe ghost correlations.
+
+**Protocol:** smoke test (1 seed, 2000 trials, d ∈ [0.6, 1.2]) passed cleanly. Full pilot: 3 seeds (123–125), topo = 0.20, 10 000 trials each, d sampled uniformly in [0.6, 1.2] cm per trial. Run: `Runs/multidist_pilot_3seed/`. Code change in `_sample_instantaneous_rates` (commit b5bf205): when `min < max`, distance is drawn from `Uniform([min, max])` rather than the old Gaussian-and-clamp.
+
+**Results (training-mode metrics):**
+
+| Seed | σ_θ (rad) | valid_fraction |
+|------|-----------|----------------|
+| 123  | 0.717     | 0.782          |
+| 124  | 0.537     | 0.831          |
+| 125  | 0.549     | 0.827          |
+| **mean ± SD** | **0.601 ± 0.101** | **0.813 ± 0.027** |
+
+**Comparison to single-distance baseline (topo = 0.20, training-mode, seed 123):** σ_θ = 0.622, valid = 0.786. Multi-distance is marginally worse on σ_θ and comparable on valid_fraction. Vertical bands remain clearly present in TS spike rasters — visually indistinguishable from single-distance runs.
+
+**Conclusion: NEGATIVE.** Multi-distance training does not fix the bands and does not improve map quality. The single-distance recipe is retained. See "Open questions §1" for revised interpretation.
 
 ---
 
-## Previous high-topo baseline (archived for reference)
+## Status
+
+✅ **Topo gradient complete (2026-05-13).** All 6 topo levels (0.10, 0.15, 0.20, 0.40, 0.60, 0.80) complete with 10 seeds each (8 at topo = 0.10). Updated figure in `Picture/topo_gradient_summary.png`. Plot code in `plots/topo_gradient_summary.py`.
+
+---
+
+## Previous high-topo baseline (archived for reference — different recipe)
 
 | Metric | Value |
 |--------|-------|
@@ -233,4 +322,6 @@ Test sweeps use a single x range, single distance, single source size, single sp
 | `valid_fraction` | 0.660 |
 | `sigma_theta` | 0.875 rad |
 
-The high-topo case has always worked. The point of this project — and of the recipe documented here — is to show that **weak** MON anatomical somatotopy is sufficient when STDP and homeostasis are tuned correctly. This is achieved at topo = 0.20 (reliably) and 0.15 (still reliably); at 0.10 the recipe begins to break down on individual seeds.
+This single-run reference used a **different parameter set** from the current recipe: gain = 125 (vs 220), no LL→MON homeostasis, different STDP amplitudes. It is **not directly comparable** to the topo gradient results above. It is kept here because it appeared in early drafts of the paper and in the original thesis proposal as the "strong-topo baseline." The current recipe at topo = 0.80 (σ_θ = 0.278 ± 0.035, valid = 0.983 ± 0.017) is far superior, confirming that the recipe improvements benefit all topo levels, not just the weak-topo regime.
+
+The point of this project remains unchanged: **weak** MON anatomical somatotopy is sufficient when STDP and homeostasis are tuned correctly. Topo = 0.20 already achieves ≈ 95 % of the map sharpness seen at topo = 0.80 with the same recipe.

@@ -1,5 +1,16 @@
 {
   "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /Users/juliegoulet/Documents/LateralLine2026/Code/LateralLine && /Users/juliegoulet/anaconda3/bin/python tools/update_simulations_index.py 2>&1 || true",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit",
