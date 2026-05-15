@@ -1,4 +1,4 @@
-# LateralLine STDP — Results Summary (2026-05-13)
+# LateralLine STDP — Results Summary (2026-05-15)
 
 ## The scientific question
 
@@ -13,6 +13,8 @@ The trivial case — strong, hand-wired anatomical topography in MON — has alw
 The full topo gradient (0.10 → 0.80, 10 seeds each) is now complete. Map quality improves monotonically with anatomical topography, but the improvement flattens sharply above topo = 0.20: going from 0.20 to 0.80 reduces mean σ_θ by only ~0.07 rad (0.353 → 0.278), while going from 0.10 to 0.20 reduces it by 0.57 rad (0.919 → 0.353). **The recipe already captures the vast majority of achievable map quality at weak somatotopy.**
 
 A persistent imperfection across all topo levels is **multimodal per-TS-cell tuning** (vertical bands in TS spike rasters) — see "Open questions" below.
+
+**Chapter-5 reproduction (2026-05-15).** Seven figures from Iris Hydi's master thesis chapter 5 have been reproduced in this model — see the *Chapter-5-style analyses* section. Key findings: (i) σ_θ(D) is U-shaped with minimum at D ≈ 0.6–0.8 cm and saturation to chance at D ≳ 0.4 L (≈ 1.6 cm) — consistent with Iris Hydi's "stable localization within ~1 body length"; (ii) the U-shape minimum is **driven by stimulus geometry, not training-distance overfitting** (proved by a multi-distance training sanity check); (iii) σ_θ at the training distance scales monotonically with MON size N (0.30 at N = 3200 → 1.77 at N = 400), but only once the MON → TS gain is rescaled as gain ∝ 1/N; without rescaling small N is broken (TS silent); (iv) population sharpening σ_θ^LL/σ_θ^TS is robust to up to 5 Hz of test-phase LL noise.
 
 ---
 
@@ -396,7 +398,11 @@ Test sweeps use a single x range, single distance, single source size, single sp
 
 ## Status
 
-✅ **Topo gradient complete (2026-05-13).** All 6 topo levels (0.10, 0.15, 0.20, 0.40, 0.60, 0.80) complete with 10 seeds each (8 at topo = 0.10). Updated figure in `Picture/topo_gradient_summary.png`. Plot code in `plots/topo_gradient_summary.py`.
+✅ **Topo gradient complete (2026-05-13).** All 6 topo levels (0.10, 0.15, 0.20, 0.40, 0.60, 0.80) complete with 10 seeds each (8 at topo = 0.10). Figure in `Picture/topo_gradient_summary.png`; plot code in `plots/topo_gradient_summary.py`.
+
+✅ **Chapter-5 reproduction complete (2026-05-15).** Seven figures reproducing Iris Hydi's master-thesis chapter 5 from the snake pit-organ system in the lateral-line model — see § *Chapter-5-style analyses* above. Plot code in `plots/chapter5_figures.py`. Sweep data catalogued in `SIMULATIONS_INDEX.md`. Phase-2 MON-size sweeps with explicit gain scaling completed overnight 2026-05-14 → 2026-05-15. Single-distance-vs-multi-distance sanity check (Fig 5.1a') confirms the U-shape minimum is driven by stimulus geometry, not training-distance overfitting.
+
+🟧 **Not yet done.** Fig 5.2 (σ_θ vs observation period T) would require per-window analysis of the test sweep — skipped in this initial pass.
 
 ---
 
