@@ -717,6 +717,13 @@ def run_spatial_two_stage_model(params: NetworkParams, checkpoint_path=None, res
     # Resets Brian2's global state (neuron groups, synapses, network objects) so
     # sequential calls to this function don't accumulate stale objects.
     b2.start_scope()
+    # Seed Brian2's internal RNG used by PoissonGroup spike sampling and the
+    # `rand()` calls in synapse/state-variable initialisers. WITHOUT this call,
+    # two runs with the same --seed-start give different spike trains and
+    # different final weights — only the numpy-side RNG (used for connectivity
+    # and weight jitter) was being seeded. Offset 12345 keeps it distinct from
+    # other per-seed RNG offsets (+999 test sweep, +8888 noise, etc.).
+    b2.seed(int(params.seed) + 12345)
     b2.defaultclock.dt = params.dt_s * b2.second
 
     all_rates_ta = b2.TimedArray(rates_all * b2.Hz, dt=params.dt_s * b2.second)
@@ -836,6 +843,17 @@ def run_spatial_two_stage_model(params: NetworkParams, checkpoint_path=None, res
         dapre/dt = -apre/taupre : 1 (event-driven)
         dapost/dt = -apost/taupost : 1 (event-driven)
         """,
+        # NOTE: MON->TS STDP is ADDITIVE (Δw does NOT scale with w), unlike the
+        # LL->MON synapse above which uses multiplicative STDP. The "additive
+        # STDP saturates weights" issue documented in
+        # ~/.claude/projects/.../memory/project_stdp_rules.md is real, but here
+        # it is compensated by the slow MON->TS multiplicative homeostasis
+        # (--mon-ts-homeo-eta 0.001): every 10 trials the incoming weight sum
+        # per TS cell is rescaled toward its initial target, which prevents
+        # the runaway saturation that pure additive STDP would otherwise show.
+        # Changing this to multiplicative would require re-tuning the whole
+        # recipe (apre/apost amplitudes, homeo eta) and is a SCIENTIFIC change,
+        # not a bug fix. Keep additive + homeostasis as the current design.
         on_pre="""
         ge_post += mon_ts_gain*w*mV
         apre += Apre
