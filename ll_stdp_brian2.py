@@ -150,7 +150,14 @@ def build_ll_to_mon_indices(
             else:
                 center = mon_pos[mon_idx] * (n_ll - 1)
                 raw = rng.normal(center, sigma_ll, size=n_topo)
-                # Ring wrap in index space (no seam at 0 / n_ll-1); same topology as periodic_line_distance_abs on [0, L).
+                # NOTE: indices that fall outside [0, n_ll-1] are CLIPPED to the
+                # nearest edge — NOT wrapped around modulo n_ll. This piles a
+                # few extra inputs onto the edge neuromasts (LL index 0 and
+                # n_ll-1) for MON cells whose preferred body position is near
+                # the head or tail. The effect is small relative to the random
+                # connection part and is biologically plausible (the fish body
+                # is linear, not periodic). If a ring-wrap topology is ever
+                # desired use `topo_sources = topo_sources % n_ll` instead.
                 topo_sources = np.clip(np.rint(raw).astype(np.int64), 0, n_ll - 1).astype(int)
             parts.append(topo_sources)
 
@@ -673,8 +680,23 @@ def _load_mid_checkpoint(run_dir):
 # Single-training pipeline (no temporal phase split)
 # ---------------------------------------------------------
 def run_spatial_two_stage_model(params: NetworkParams, checkpoint_path=None, resume_checkpoint=None):
-    # Build training and test stimuli.
-    train_rates, train_samples, train_x_cm = make_training_rates(params)
+    # Decide up front whether ANY training trials remain. Extract-mode runs
+    # have resume_checkpoint["trial_idx"] == n_training_trials - 1 (all
+    # trials already done), and previously we still allocated the full
+    # ~9.6 GB training stimulus only to slice it down to 0. Skip the call
+    # entirely in that case.
+    extract_only = (
+        resume_checkpoint is not None
+        and int(resume_checkpoint.get("trial_idx", -1)) + 1 >= params.n_training_trials
+    )
+
+    if extract_only:
+        train_rates = np.zeros((0, params.n_ll), dtype=float)
+        train_samples: list[dict] = []
+        train_x_cm = np.zeros(0, dtype=float)
+    else:
+        train_rates, train_samples, train_x_cm = make_training_rates(params)
+
     test_sim = make_test_rates_held_snapshots(params) if bool(params.test_using_held_snapshots) else make_test_rates(params)
     test_rates = test_sim["rates_hz"]
 

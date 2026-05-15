@@ -25,7 +25,9 @@ dst_artifacts.mkdir(parents=True, exist_ok=True)
 
 w = np.load(src_weights, allow_pickle=False)
 
-np.savez(
+# savez_compressed (vs savez): ~3x smaller on disk and reduces I/O time;
+# load is still mmap'd lazily by np.load downstream.
+np.savez_compressed(
     dst_artifacts / "mid_checkpoint.npz",
     trial_idx=np.array(9999, dtype=int),
     mon_ts_w=w["mon_ts_w"],
