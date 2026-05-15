@@ -246,6 +246,8 @@ Distance D refers to the source-body lateral distance; the body has length L = 4
 
 The four curves separate cleanly by topo level only at small D (≤ 1 cm); at large D they collapse onto the same chance-level plateau.
 
+![Figure 5.1a — sigma_theta vs distance, four topo levels](Picture/ch5_fig51a_sigma_vs_dist_topo.png)
+
 **Figure 5.1a** (`Picture/ch5_fig51a_sigma_vs_dist_topo.png`). Somatotopic decoding error σ_θ as a function of stimulus distance D/L, for four MON anatomical somatotopy levels (topo = 0.10, 0.20, 0.40, 0.80). Each curve is mean ± SD across 3 seeds; shading shows ± 1 SD. Dashed black line marks the training distance D = 0.8 cm; grey dotted line marks π/2 (chance). All evaluations are extract-mode tests (saved final weights, fresh RNG test phase).
 
 ### Single-distance vs multi-distance training — Fig 5.1a'
@@ -255,6 +257,8 @@ The four curves separate cleanly by topo level only at small D (≤ 1 cm); at la
 **Result.** Identical U-shape in both training protocols. Training on a uniform mixture d ∈ [0.6, 1.2] cm produces a minimum at D = 0.6 cm with **σ_θ = 0.400 rad**, a single-D fit at D = 0.8 gives **σ_θ = 0.303 rad** — the multi-D curve is slightly broader (σ_θ ≈ 0.40 over a 0.6–1.0 cm range, vs single-D's sharp peak at 0.80 cm) but the minimum is **in the same neighbourhood** of distances regardless of training. Outside the training range (D ≥ 1.5 cm) both curves are statistically indistinguishable.
 
 **Interpretation.** The U-shape minimum is driven by **stimulus geometry**: the dipole hydrodynamic field at D ≈ 0.6–0.8 cm provides the steepest spatial gradient across the lateral-line array — the signal is most informative there. Training distance modulates how much the network *exploits* that geometry, but does not move the optimal distance.
+
+![Figure 5.1a' — single-D vs multi-D training](Picture/ch5_fig51a_singleD_vs_multiD.png)
 
 **Figure 5.1a'** (`Picture/ch5_fig51a_singleD_vs_multiD.png`). Single-distance training (blue, fixed D = 0.8 cm) vs multi-distance training (orange, D ∈ [0.6, 1.2] cm uniform per trial). Mean ± SD across 3 seeds. Shaded vertical band marks the multi-D training range; dashed line marks the single-D training point. Both protocols use topo = 0.20 and 10 000 trials.
 
@@ -279,9 +283,15 @@ The four curves separate cleanly by topo level only at small D (≤ 1 cm); at la
 
 **Interpretation.** This recovers the Iris Hydi N_MON-vs-σ_θ relationship from her chapter 5 (her Fig 5.3). The gain-scaling step is critical: it disentangles two effects — *can the network fire at all* (gain) from *how precisely can it code position* (N).
 
+![Figure 5.1b — sigma_theta vs distance, four MON sizes (scaled gain)](Picture/ch5_fig51b_sigma_vs_dist_nmon.png)
+
 **Figure 5.1b** (`Picture/ch5_fig51b_sigma_vs_dist_nmon.png`). σ_θ vs distance D/L for four MON sizes (N = 400, 800, 1600, 3200) using the gain-scaling recipe. Mean ± SD across 3 seeds. Same conventions as Fig 5.1a.
 
+![Figure 5.1b' — unscaled vs scaled gain comparison](Picture/ch5_fig51b_comparison_unscaled_vs_scaled.png)
+
 **Figure 5.1b'** (`Picture/ch5_fig51b_comparison_unscaled_vs_scaled.png`). Two-panel comparison. **Left**: unscaled (gain = 220 mV for all N) — small-N curves are clearly broken (high σ_θ, silent runs at many distances). **Right**: scaled (gain = 220 × 3200/N) — all curves recover the expected family of U-shapes, separating cleanly by N. This figure justifies why the gain-scaling correction is necessary before comparing across N.
+
+![Figure 5.3 — sigma_theta at D=0.8 cm vs MON size](Picture/ch5_fig53_sigma_vs_nmon.png)
 
 **Figure 5.3** (`Picture/ch5_fig53_sigma_vs_nmon.png`). Map quality at the training distance D = 0.8 cm vs N_MON, log₂ x-axis. **Blue (solid)**: scaled gain — clean monotonic improvement σ_θ = 1.77 → 1.04 → 0.52 → 0.30 across N = 400 → 3200. **Red (dashed)**: unscaled gain (gain = 220 mV) — non-monotonic, because the recipe is broken for small N. Error bars are SD across 3 seeds. Dotted line marks π/2 (chance).
 
@@ -295,7 +305,11 @@ The four curves separate cleanly by topo level only at small D (≤ 1 cm); at la
 
 - **Trial-to-trial variability ratio Δ_TS / Δ_LL (Fig 5.5)** is **above 1 across all distances** (TS is more variable than LL), peaking at D < 0.4 cm (ratio ≈ 5×). **Direction opposite to Iris Hydi's pit-organ result** (her Fig 5.5 shows RC less variable than IR). Reason: in our recipe the LL layer is essentially a clean Poisson representation of the stimulus (the spatial-correlated background noise σ_corr is already in the stimulus model); 5 Hz of additive noise is small compared to mean LL rate (~ 8 Hz), so LL stays cleaner than the noisy multi-stage TS output (MON spikes + lateral inhibition + STDP residual). To reproduce Iris Hydi's Fig 5.5 *quantitatively*, the LL would need much higher intrinsic noise — a design choice rather than a property of the model.
 
+![Figure 5.4 — population sharpening vs distance, three noise levels](Picture/ch5_fig54_sharpening_vs_dist.png)
+
 **Figure 5.4** (`Picture/ch5_fig54_sharpening_vs_dist.png`). Population sharpening ratio σ_θ^LL / σ_θ^TS as a function of D/L, for three test-phase noise levels (σ_noise = 0, 2, 5 Hz). Ratio > 1 means the TS population vector is sharper than direct LL decoding. Mean ± SD across 3 seeds. Dashed line: training D = 0.8 cm. Dotted: ratio = 1 (no sharpening).
+
+![Figure 5.5 — trial variability ratio vs distance, three noise levels](Picture/ch5_fig55_variability_vs_dist.png)
 
 **Figure 5.5** (`Picture/ch5_fig55_variability_vs_dist.png`). Trial-to-trial variability ratio Δ_trial^TS / Δ_trial^LL as a function of D/L, same conditions and conventions as Fig 5.4. Ratio < 1 would indicate the TS layer reduces trial-to-trial noise (Iris Hydi's pit-organ finding); our model shows ratio > 1 because LL is essentially noiseless in our recipe.
 
