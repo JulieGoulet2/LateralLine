@@ -25,9 +25,11 @@ import numpy as np
 # Per-seed data
 # -----------------------------------------------------------------------
 
-# topo = 0.10 — 8 seeds (123, 126-132); extract-mode
-sigma_010 = np.array([1.482, 0.915, 0.775, 0.699, 0.834, 0.765, 0.770, 1.108])
-valid_010 = np.array([0.539, 0.860, 0.906, 0.884, 0.848, 0.889, 0.940, 0.844])
+# topo = 0.10 — 10 seeds (123-132); extract-mode
+# Seeds 124, 125 retrained post-B1 fix on 2026-05-17 (commit 3392ea8 onwards);
+# other seeds are from the original (pre-B1) Y4 run. Mixed-RNG dataset.
+sigma_010 = np.array([1.482, 0.775, 0.897, 0.915, 0.775, 0.699, 0.834, 0.765, 0.770, 1.108])
+valid_010 = np.array([0.539, 0.868, 0.886, 0.860, 0.906, 0.884, 0.848, 0.889, 0.940, 0.844])
 
 # topo = 0.15 — 10 seeds (123-132); extract-mode
 sigma_015 = np.array([0.459, 0.580, 0.278, 0.583, 0.418, 0.398, 0.528, 0.477, 0.376, 0.453])
@@ -63,7 +65,7 @@ sigma_sds   = np.array([s.std(ddof=1) for s in all_sigma])
 valid_means = np.array([v.mean() for v in all_valid])
 valid_sds   = np.array([v.std(ddof=1) for v in all_valid])
 
-seed_counts = [8, 10, 10, 10, 10, 10]
+seed_counts = [10, 10, 10, 10, 10, 10]
 
 # -----------------------------------------------------------------------
 # Figure

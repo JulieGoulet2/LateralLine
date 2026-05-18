@@ -10,7 +10,7 @@ The trivial case — strong, hand-wired anatomical topography in MON — has alw
 
 **Yes**, with one important qualification. The recipe documented in `BASELINE.md` produces a population-level somatotopic map in TS at MON anatomical somatotopy as low as **`ll_mon_topo = mon_ts_topo = 0.15`**, comfortably below the high-topo reference (0.80) used in earlier work. At the **best operating point (topo = 0.20)** the recipe is highly reliable: 10 / 10 seeds give σ_θ < 0.5 rad and valid_fraction > 0.86. At **topo = 0.15** it remains reliable but with broader maps. At the **floor (topo = 0.10)** it becomes unstable — most seeds still produce a map, but ~10 % fail outright.
 
-The full topo gradient (0.10 → 0.80, 10 seeds each) is now complete. Map quality improves monotonically with anatomical topography, but the improvement flattens sharply above topo = 0.20: going from 0.20 to 0.80 reduces mean σ_θ by only ~0.07 rad (0.353 → 0.278), while going from 0.10 to 0.20 reduces it by 0.57 rad (0.919 → 0.353). **The recipe already captures the vast majority of achievable map quality at weak somatotopy.**
+The full topo gradient (0.10 → 0.80, 10 seeds each) is now complete. Map quality improves monotonically with anatomical topography, but the improvement flattens sharply above topo = 0.20: going from 0.20 to 0.80 reduces mean σ_θ by only ~0.07 rad (0.353 → 0.278), while going from 0.10 to 0.20 reduces it by 0.55 rad (0.902 → 0.353). **The recipe already captures the vast majority of achievable map quality at weak somatotopy.**
 
 A persistent imperfection across all topo levels is **multimodal per-TS-cell tuning** (vertical bands in TS spike rasters) — see "Open questions" below.
 
@@ -26,7 +26,7 @@ Three-layer feed-forward network (defaults from `params.py`, mode `ll_thesis`):
 
 | Layer | Size | Role |
 |---|---|---|
-| **LL** (lateral-line afferents) | 100 | Poisson input, one neuron per neuromast, x-positions equispaced on a 4 cm body |
+| **LL** (lateral-line afferents) | 100 | One neuron per neuromast, x-positions equispaced on a 4 cm body. Input = analytical hydrodynamic dipole field (`stimulus.py`); only the **spike emission** is Poisson (inhomogeneous rate, see Stimulus section). |
 | **MON** (intermediate) | 3200 | LIF spiking, plastic incoming synapses (LL → MON STDP) |
 | **TS** (map output) | 300 | LIF spiking, plastic incoming synapses (MON → TS STDP), lateral inhibition |
 
@@ -111,7 +111,7 @@ The exact CLI for the topo = 0.20 baseline is in `BASELINE.md`. All runs in this
 ![Topo gradient summary](Picture/topo_gradient_summary.png)
 
 **Figure 1.** *Somatotopic map quality as a function of MON anatomical topography strength.*
-**(A)** Map sharpness measured by σ_θ in radians (lower is better). Light blue dots are individual seeds; dark blue points show mean ± SD across seeds at each topo level. The dotted line at π/2 ≈ 1.57 rad marks chance level. **(B)** Map reliability measured by `valid_fraction` (higher is better). Same conventions as in (A). The dotted line at 0.60 marks the validity threshold used to classify a run as a working map. Values for topo = 0.10 / 0.15 / 0.20 are extract-mode (saved final weights, test phase from a fresh RNG state); values for topo = 0.40 / 0.60 / 0.80 are training-mode metrics from `run_multi_seed_safe.sh`. N = 8 seeds at `topo = 0.10` (123, 126–132); N = 10 seeds at all other topo levels (123–132). **Map quality improves monotonically with anatomical topography but saturates rapidly above topo = 0.20**; the recipe at topo = 0.20 already achieves ≈ 95 % of the map sharpness seen at topo = 0.80.
+**(A)** Map sharpness measured by σ_θ in radians (lower is better). Light blue dots are individual seeds; dark blue points show mean ± SD across seeds at each topo level. The dotted line at π/2 ≈ 1.57 rad marks chance level. **(B)** Map reliability measured by `valid_fraction` (higher is better). Same conventions as in (A). The dotted line at 0.60 marks the validity threshold used to classify a run as a working map. Values for topo = 0.10 / 0.15 / 0.20 are extract-mode (saved final weights, test phase from a fresh RNG state); values for topo = 0.40 / 0.60 / 0.80 are training-mode metrics from `run_multi_seed_safe.sh`. N = 10 seeds at every topo level (seeds 123–132). **Map quality improves monotonically with anatomical topography but saturates rapidly above topo = 0.20**; the recipe at topo = 0.20 already achieves ≈ 95 % of the map sharpness seen at topo = 0.80.
 
 ### `topo = 0.20` — operational baseline
 
@@ -217,11 +217,13 @@ Best map quality across all topo levels, as expected. Virtually indistinguishabl
 
 ### `topo = 0.10` — the floor of recipe robustness
 
-8 seeds, 10 000 trials each, extract-mode metrics. Seeds 124 and 125 are missing from this row because the original Y4 multi-seed run did not save per-seed checkpoints for them (only seed 123 was saved); without saved weights we cannot extract-mode-evaluate them.
+10 seeds, 10 000 trials each, extract-mode metrics. Seeds 124 and 125 were retrained on 2026-05-17 post-B1 (commit `3392ea8` onward) using deterministic Brian2 RNG; the other 8 seeds (123, 126–132) are from the original Y4 multi-seed run with un-seeded Brian2 RNG.
 
 | Seed | σ_θ (rad) | valid_fraction | Note |
 |------|-----------|----------------|------|
 | 123  | **1.482** | **0.539** | below validity threshold |
+| 124  | 0.775     | 0.868          | retrained 2026-05-17 (post-B1) |
+| 125  | 0.897     | 0.886          | retrained 2026-05-17 (post-B1) |
 | 126  | 0.915     | 0.860          | |
 | 127  | 0.775     | 0.906          | |
 | 128  | 0.699     | 0.884          | |
@@ -229,10 +231,10 @@ Best map quality across all topo levels, as expected. Virtually indistinguishabl
 | 130  | 0.765     | 0.889          | |
 | 131  | 0.770     | 0.940          | |
 | 132  | 1.108     | 0.844          | |
-| **mean ± SD (N = 8)** | **0.919 ± 0.260** | **0.839 ± 0.125** | |
-| **mean ± SD (N = 7, excl. seed 123)** | **0.838 ± 0.137** | **0.882 ± 0.034** | |
+| **mean ± SD (N = 10)** | **0.902 ± 0.234** | **0.846 ± 0.112** | |
+| **mean ± SD (N = 9, excl. seed 123)** | **0.838 ± 0.122** | **0.881 ± 0.030** | |
 
-At `topo = 0.10` the recipe is at the edge of what it can deliver. **One seed in eight (≈ 13 %) outright fails** (seed 123: σ_θ near chance, valid_fraction below threshold). The other 7 seeds still produce a working map, but σ_θ is broader (mean 0.84 rad, comparable to the high-topo reference) and the SD is large (≈ 16 % of the mean even with the failed seed excluded). At this somatotopy, **the recipe is no longer reliable on a per-individual-network basis** — it works on average but with non-trivial probability of complete failure.
+At `topo = 0.10` the recipe is at the edge of what it can deliver. **One seed in ten (≈ 10 %) outright fails** (seed 123: σ_θ near chance, valid_fraction below threshold). The other 9 seeds still produce a working map, but σ_θ is broader (mean 0.84 rad, comparable to the high-topo reference) and the spread is large. At this somatotopy, **the recipe is no longer reliable on a per-individual-network basis** — it works on average but with non-trivial probability of complete failure. The two newly added seeds (124, 125) fall within the typical range, confirming the failure mode is not specific to the seeds that the original Y4 run happened to use.
 
 ---
 
@@ -372,7 +374,7 @@ In every single network, individual TS cells fire at **2–3 distinct x position
 
 ### 2. Topo = 0.10 is the practical floor
 
-The 13 % single-seed failure rate at topo = 0.10 (1 / 8 seeds) means the recipe is no longer robust at this level. Lower topo (e.g. 0.05) is unlikely to work without an additional mechanism (bigger jitter, higher in-degree, or multi-distance training). We have not pushed below 0.10.
+The 10 % single-seed failure rate at topo = 0.10 (1 / 10 seeds) means the recipe is no longer robust at this level. Lower topo (e.g. 0.05) is unlikely to work without an additional mechanism (bigger jitter, higher in-degree, or multi-distance training). We have not pushed below 0.10.
 
 ### 3. Single training distance — generalisation untested
 
@@ -416,7 +418,7 @@ Test sweeps use a single x range, single distance, single source size, single sp
 
 ## Status
 
-✅ **Topo gradient complete (2026-05-13).** All 6 topo levels (0.10, 0.15, 0.20, 0.40, 0.60, 0.80) complete with 10 seeds each (8 at topo = 0.10). Figure in `Picture/topo_gradient_summary.png`; plot code in `plots/topo_gradient_summary.py`.
+✅ **Topo gradient complete (2026-05-13; topo=0.10 completed to 10 seeds on 2026-05-17).** All 6 topo levels (0.10, 0.15, 0.20, 0.40, 0.60, 0.80) complete with 10 seeds each. Figure in `Picture/topo_gradient_summary.png`; plot code in `plots/topo_gradient_summary.py`.
 
 ✅ **Chapter-5 reproduction complete (2026-05-15).** Seven figures reproducing Iris Hydi's master-thesis chapter 5 from the snake pit-organ system in the lateral-line model — see § *Chapter-5-style analyses* above. Plot code in `plots/chapter5_figures.py`. Sweep data catalogued in `SIMULATIONS_INDEX.md`. Phase-2 MON-size sweeps with explicit gain scaling completed overnight 2026-05-14 → 2026-05-15. Single-distance-vs-multi-distance sanity check (Fig 5.1a') confirms the U-shape minimum is driven by stimulus geometry, not training-distance overfitting.
 
