@@ -79,6 +79,20 @@ Trained at d ∈ [0.6, 1.2] cm (uniform per trial) instead of fixed 0.8 cm.
 | `multidist_pilot_3seed/` | 123, 124, 125 | uniform [0.6, 1.2] cm | `multidist` (run 2026-05-15) |
 | `multidist_pilot_smoke_2k/` | 123 | smoke test, 2000 trials | — |
 
+### 1.6 Training-phase noise sweep (2026-05-18 → 2026-05-19)
+
+5 noise levels × 2 seeds, topo=0.20 baseline, 10 000 trials each. Noise is constant during training; SD in Hz equals `scale × sigma_noise_hz = scale × 10`.
+
+| Condition | Training run | Extract-mode runs | seeds | trained |
+|-----------|--------------|-------------------|-------|---------|
+| noise=0.0 | `llmon_trainnoise_noise00_seeds123_124/` | `extract_trainnoise_noise00_seed_{123,124}/` | 123, 124 | 2026-05-18 → 19 |
+| noise=0.3 | `llmon_trainnoise_noise03_seeds123_124/` | `extract_trainnoise_noise03_seed_{123,124}/` | 123, 124 | 2026-05-18 → 19 |
+| noise=0.5 | `llmon_trainnoise_noise05_seeds123_124/` | `extract_trainnoise_noise05_seed_{123,124}/` | 123, 124 | 2026-05-19 |
+| noise=0.8 | `llmon_trainnoise_noise08_seeds123_124/` | `extract_trainnoise_noise08_seed_{123,124}/` | 123, 124 | 2026-05-19 |
+| noise=1.0 | `llmon_trainnoise_noise10_seeds123_124/` | `extract_trainnoise_noise10_seed_{123,124}/` | 123, 124 | 2026-05-19 |
+
+Orchestrator: `run_training_noise_sweep.sh`. Figure: `Picture/ch5_training_noise_robustness.png`. Plot code: `plots/training_noise_robustness.py`. Convergence checker: `tools/check_convergence.py`.
+
 ---
 
 ## 2. Figures (Picture/)
@@ -92,6 +106,7 @@ Trained at d ∈ [0.6, 1.2] cm (uniform per trial) instead of fixed 0.8 cm.
 | `ch5_fig53_sigma_vs_nmon.png` | §1.4 both at D=0.8 | `plots/chapter5_figures.py::fig53` |
 | `ch5_fig54_sharpening_vs_dist.png` | §1.3 | `plots/chapter5_figures.py::fig54` |
 | `ch5_fig55_variability_vs_dist.png` | §1.3 | `plots/chapter5_figures.py::fig55` |
+| `ch5_training_noise_robustness.png` | §1.6 | `plots/training_noise_robustness.py` |
 
 Regenerate all chapter-5 figures (≈ 5 s):
 ```bash

@@ -338,6 +338,75 @@ Underlying sweep runs are catalogued in `SIMULATIONS_INDEX.md`.
 
 ---
 
+## Training-phase noise robustness (2026-05-19)
+
+### Question
+
+Earlier chapter-5 figures (5.4 / 5.5) tested noise added at **test time** to a network that had been trained noise-free. That isolated decoding robustness from learning robustness. Here we ask the harder question:
+
+**If LL afferents are noisy during the entire 10 000-trial training phase, does the somatotopic map still form, and is 10 000 trials still enough for STDP to converge?**
+
+### Method
+
+5 conditions on the topo = 0.20 baseline recipe (MON = 3200, fixed D = 0.8 cm), with constant Gaussian noise on LL rates throughout training. The noise SD in Hz equals `training_noise_scale × sigma_noise_hz` where `sigma_noise_hz = 10` Hz, so:
+
+| Condition | `--training-noise-early = --training-noise-late` | Noise SD (Hz) |
+|----------|-------------------------------------------------|---------------|
+| control  | 0.0 | 0  |
+| low      | 0.3 | 3  |
+| moderate | 0.5 | 5  |
+| high     | 0.8 | 8  |
+| very high| 1.0 | 10 |
+
+2 seeds per condition (123, 124), 10 trainings total (≈ 20 h sequential on M4 via `run_multi_seed_safe.sh`).
+
+After training, each saved checkpoint was extract-mode-evaluated at the training distance D = 0.8 cm for an apples-to-apples comparison with the rest of the document.
+
+### Result
+
+**The recipe is essentially invariant to LL training-phase noise across the entire range tested**, including the very-high condition where the noise SD equals the documented `sigma_noise_hz` (and is comparable to the mean LL test-phase firing rate ~ 8 Hz).
+
+| Condition | seed 123 σ_θ (extract) | seed 124 σ_θ (extract) | mean ± SD | mean valid |
+|-----------|------------------------|-------------------------|-----------|-----------|
+| noise = 0.0  | 0.453 | 0.418 | **0.436 ± 0.025** | 0.914 |
+| noise = 0.3  | 0.455 | 0.370 | **0.413 ± 0.060** | 0.913 |
+| noise = 0.5  | 0.493 | 0.414 | **0.454 ± 0.056** | 0.912 |
+| noise = 0.8  | 0.432 | 0.388 | **0.410 ± 0.031** | 0.912 |
+| noise = 1.0  | 0.499 | 0.370 | **0.435 ± 0.091** | 0.911 |
+
+Mean σ_θ stays in the **0.41–0.45 rad** band at every noise level — well within the seed-to-seed variability seen elsewhere in this document (e.g. baseline topo = 0.20 has σ_θ = 0.353 ± 0.058 across 10 seeds, so 0.43 is within 1.5 SD of that mean). `valid_fraction` is essentially constant at 0.91.
+
+### Convergence verdict
+
+The 10 000-trial budget is sufficient under noise. Across all five conditions:
+
+- The **σ_θ plateau test** passes — σ_θ stops decreasing in the last 1500 trials of every run; the smoothed learning curves (Fig X.A) are flat after about trial 5000.
+- A **strict weight-stabilisation test** (mean |Δw| < 0.5 % for 4 consecutive checkpoints) does not pass for any condition — but it also does not pass for the noise = 0.0 control. This is a known property of the recipe (multiplicative STDP + slow homeostasis maintains a small steady weight churn at equilibrium) and is not a noise-induced failure. The σ_θ plateau is the meaningful convergence signal at this scale.
+
+### Why the recipe is so robust
+
+Three mechanisms cooperate to absorb noise at the input:
+
+1. **Spatially-correlated stimulus noise was already present** (`stimulus.l_noise_cm = 1 cm`, `sigma_noise_hz = 10` Hz used as the structure background of `_sample_instantaneous_rates`). The training noise scale here multiplies that same correlated source; we are increasing existing trial-to-trial fluctuations, not introducing a new noise channel.
+2. **LL → MON multiplicative STDP** integrates over many spike pairs per trial and over many trials per checkpoint; with 100 LL neurons × 100 ms presentations × 50 presentations per trial × 10 000 trials, the SNR on each MON cell's preferred-direction weight is very high even when the per-spike noise is comparable to signal.
+3. **MON → TS slow multiplicative homeostasis** (`mon_ts_homeo_eta = 0.001`) rescales the sum-of-incoming-weights toward target every 10 trials. This actively counteracts any noise-induced drift in the overall TS drive level, even though it does not select *which* MON inputs each TS cell prefers.
+
+### Figure
+
+![Figure X — training-phase LL noise robustness](Picture/ch5_training_noise_robustness.png)
+
+**Figure X.** *Training-phase LL noise robustness.* **(A)** Learning curves: σ_θ during training (smoothed over 50 checkpoints, ≈ 500 trials) for the five noise conditions, mean across 2 seeds. Dashed vertical line marks the 10 000-trial budget; grey dotted line marks π/2 (chance). All five curves overlap within seed-to-seed variability. **(B)** Final extract-mode σ_θ at D = 0.8 cm vs noise scale, mean ± SD across 2 seeds. Horizontal dotted line: noise = 0 control. The 5-point sweep shows no systematic dependence on noise — the recipe is invariant to LL training-phase noise across the entire range tested, up to and including the 10 Hz level where the noise SD is comparable to the mean LL test-phase firing rate.
+
+### Caveats and follow-ups
+
+- Only 2 seeds per condition; the mean is informative but per-seed scatter could be sharpened by adding more seeds.
+- The noise model used here is the existing `stimulus.py` spatially-correlated Gaussian on LL rates. A different noise structure (e.g. pure white noise per neuron, or jitter in `sigma_distance_cm`) could behave differently.
+- Tested only on the topo = 0.20 baseline. The weak-topo regime (topo ≤ 0.15), where the recipe is already at the edge of failing, may not be as forgiving.
+
+Underlying training runs: `Runs/llmon_trainnoise_noise{00,03,05,08,10}_seeds123_124/`. Extract-mode evaluations: `Runs/extract_trainnoise_noise{XX}_seed_{NNN}/`. Plot code: `plots/training_noise_robustness.py`. Convergence checker: `tools/check_convergence.py`.
+
+---
+
 ## Mechanism — what made the recipe work at weak topo
 
 After ~30 design experiments, three levers turned out to be necessary at low MON topo (without them the network either fails to form a map or produces all-saturated dead weights):
