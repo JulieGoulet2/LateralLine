@@ -41,6 +41,7 @@ class NetworkParams:
     speed_cm_s: float = 5.0       # sphere speed (cm/s); test duration = test_path_cm / speed_cm_s   --speed-cm-s
     distance_cm: float = 1.5      # sphere distance from lateral line during the test sweep (cm)       --distance-cm
     direction: float = 1.0        # sphere travel direction (+1 = forward along x, -1 = backward)     --direction
+    sphere_radius_cm: float = 0.5 # radius of the moving sphere (cm); scales dipole source strength    --sphere-radius-cm
     ll_rate_mode: str = "raw"     # "raw": use LL rates from model; "modulation": subtract r0         --ll-rate-mode
     ll_rate_baseline_subtract_hz: float = 0.0  # additional baseline subtracted from LL rates before Poisson drive (Hz)  --ll-baseline-subtract-hz
     ll_rate_gain: float = 1.0                  # multiplicative gain on LL rates before Poisson drive                     --ll-rate-gain

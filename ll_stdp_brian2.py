@@ -254,7 +254,7 @@ def _sample_instantaneous_rates(
 def make_training_rates(params: NetworkParams):
     """Balanced-position snapshot training stream for all training trials."""
     rng = np.random.default_rng(params.seed)
-    stim_params = StimulusParams(lateral_line_length_cm=params.ll_body_length_cm)
+    stim_params = StimulusParams(lateral_line_length_cm=params.ll_body_length_cm, sphere_radius_cm=params.sphere_radius_cm)
 
     xi_cm = np.linspace(0.0, stim_params.lateral_line_length_cm, params.n_ll)
     yi_cm = np.zeros_like(xi_cm)
@@ -329,7 +329,7 @@ def make_test_rates(params: NetworkParams):
     """
     test_duration_s = params.test_path_cm / max(params.speed_cm_s, 1e-9)
     # Start 0.5 cm before the lateral line; sphere moves forward along the test path.
-    stim_params = StimulusParams(lateral_line_length_cm=params.ll_body_length_cm)
+    stim_params = StimulusParams(lateral_line_length_cm=params.ll_body_length_cm, sphere_radius_cm=params.sphere_radius_cm)
     x0_cm = -0.5 if params.direction >= 0 else (stim_params.lateral_line_length_cm + 0.5)
     sim = simulate_lateral_line(
         duration_s=test_duration_s,
@@ -352,7 +352,7 @@ def make_test_rates_held_snapshots(params: NetworkParams):
     held snapshots sampled like training positions (x_bins sweeps / shuffle, hold, noise curriculum).
     """
     rng = np.random.default_rng(params.seed + 999)
-    stim_params = StimulusParams(lateral_line_length_cm=params.ll_body_length_cm)
+    stim_params = StimulusParams(lateral_line_length_cm=params.ll_body_length_cm, sphere_radius_cm=params.sphere_radius_cm)
     xi_cm = np.linspace(0.0, stim_params.lateral_line_length_cm, params.n_ll)
     yi_cm = np.zeros_like(xi_cm)
     noise_chol = _build_spatial_noise_cholesky(xi_cm, stim_params)
@@ -1647,6 +1647,7 @@ def main():
     # --- Stimulus ---
     parser.add_argument("--speed-cm-s", type=float, default=None, help="Sphere speed in cm/s; sets test duration via test_path_cm / speed.")
     parser.add_argument("--direction", type=float, default=None, help="Sphere travel direction (+1 = forward, -1 = backward).")
+    parser.add_argument("--sphere-radius-cm", type=float, default=None, help="Radius of the moving sphere (cm); default 0.5. Scales dipole source strength.")
     # --- LIF neuron constants ---
     parser.add_argument("--vth-mv", type=float, default=None, help="Override LIF spike threshold (mV).")
     parser.add_argument("--vreset-mv", type=float, default=None, help="Override LIF reset potential after spike (mV).")
@@ -1705,6 +1706,7 @@ def main():
         # stimulus
         ("speed_cm_s",                "speed_cm_s",                          lambda x: float(max(1e-6, x))),
         ("direction",                 "direction",                           lambda x: float(x)),
+        ("sphere_radius_cm",          "sphere_radius_cm",                    lambda x: float(max(1e-3, x))),
         ("distance_cm",               "distance_cm",                         lambda x: float(max(1e-6, x))),
         ("ll_body_length_cm",         "ll_body_length_cm",                   lambda x: float(max(0.1, x))),
         ("test_path_cm",              "test_path_cm",                        lambda x: float(max(1e-9, x))),

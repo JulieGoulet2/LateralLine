@@ -457,6 +457,10 @@ All current results train and test at exactly `d = 0.8 cm`. We do not know yet w
 
 Test sweeps use a single x range, single distance, single source size, single speed. Cross-stimulus generalisation has not been measured.
 
+**Step 2 analysis (2026-07-08) — the map is robust to stimulus strength and is direction-specific.** Extract-mode test sweeps on the 6 topo = 0.20 networks (127–132), varying one test property at a time (no retraining; `run_stimvar_extract.sh`, `plots/stimvar_summary.py`). **Size / speed (signal strength):** a stronger stimulus (sphere r = 0.7 cm, or 10 cm/s) preserves or slightly sharpens the map (σ_θ = 0.26 / 0.27 rad vs 0.33 baseline; valid ≈ 0.91), while a weaker stimulus (r = 0.3 cm, or 2.5 cm/s) degrades it (σ_θ = 1.27 / 0.65 rad; valid = 0.66 / 0.77). The degradation is a **signal-to-noise effect** — the LIF thresholds and homeostasis are calibrated to the training drive level, so a weaker input under-drives the network. The map is therefore robust to stimulus strength at or above the trained level and degrades gracefully below it. **Direction:** reversing the sweep (backward) drives the population just as reliably (valid = 0.89) but makes the decoded position *systematically wrong* (σ_θ = 1.00 rad, 3× baseline). The learned readout is **direction-specific**: a decoder calibrated on forward motion mis-maps backward motion. This is the population-level signature of the **front/back geometric ambiguity** predicted by the Step-1 analysis (a bipolar dipole makes forward-at-x resemble backward-at-x+2 cm). Together these broaden the map claim: the somatotopic code generalises across object size and speed (within an SNR-limited band) but is tied to the trained motion direction — a concrete, testable model prediction. A new backwards-compatible `--sphere-radius-cm` CLI flag (default 0.5) was added to vary object size.
+
+![](Picture/stimvar_summary.png)
+
 ---
 
 ## Status of the codebase / dataset
