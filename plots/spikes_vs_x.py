@@ -1,3 +1,13 @@
+"""
+Test-phase raster figures: spike index vs stimulus position x.
+
+Helper module IMPORTED by ll_stdp_brian2.py (not run standalone). Each function takes
+the `result` dict returned by run_spatial_two_stage_model (spike monitors + test-sweep
+timing/position) and writes one scatter PNG into Runs/<run>/figures/. The three
+functions are near-identical for the LL, MON, and TS layers. The TS raster is where the
+"vertical bands" (multimodal tuning) are visible — see RESULTS.md §1.
+"""
+
 from pathlib import Path
 
 import brian2 as b2

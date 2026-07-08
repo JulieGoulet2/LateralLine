@@ -1,3 +1,14 @@
+"""
+MON->TS feedforward-drive diagnostic figures (test phase).
+
+Helper module IMPORTED by ll_stdp_brian2.py (not run standalone). From the `result`
+dict it estimates, per x-bin, the summed MON->TS drive each TS cell receives
+(spike_count_MON[i, xbin] * w_ij * gain), then writes two PNGs into
+Runs/<run>/figures/: a TS-vs-x drive heatmap and the winning-TS-index-vs-x curve.
+This is the spiking counterpart to the purely feedforward reconstruction in
+plots/tuning_multimodality.py.
+"""
+
 from pathlib import Path
 
 import brian2 as b2

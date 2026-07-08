@@ -453,6 +453,10 @@ The 10 % single-seed failure rate at topo = 0.10 (1 / 10 seeds) means the recipe
 
 All current results train and test at exactly `d = 0.8 cm`. We do not know yet whether the resulting map generalises to other distances, or how much the recipe depends on the specific dipole-field geometry at this one distance.
 
+**Step 3 analysis (2026-07-08) — the map generalises within a near-field band, widened by multi-distance training.** Extract-mode distance sweeps (test D = 0.2–3.0 cm) on the single-distance-trained networks (topo = 0.20, 6 seeds 127–132, trained at D = 0.8 cm) and the multi-distance pilot (3 seeds 123–125, D ∈ [0.6, 1.2] cm); `run_distance_sweep_extract.sh`, `plots/distance_generalization.py`. The single-D map is U-shaped in test distance: sharpest at the trained D = 0.8 (σ_θ = 0.31 rad), usable across a near-field band ~0.4–1.2 cm, degrading toward chance (π/2) beyond ~1.5 cm (σ_θ = 1.68 at D = 2.0). Multi-distance training flattens and broadens the band — a slightly worse best-case (σ_θ = 0.41 at D = 0.8) but markedly better far-field generalisation (σ_θ = 1.31 vs 1.68 at D = 2.0): a generalisation-vs-specialisation tradeoff. Both protocols fail at D > 2 cm because the dipole field falls as 1/r³, so distant sources give weak, broad, low-SNR input — the same signal-to-noise limit seen in the Step-2 size/speed sweep. **Q3 answer:** the map generalises across distance, but only within a near-field band whose width is set by the training-distance distribution.
+
+![](Picture/distance_generalization.png)
+
 ### 4. Limited range of test stimuli
 
 Test sweeps use a single x range, single distance, single source size, single speed. Cross-stimulus generalisation has not been measured.

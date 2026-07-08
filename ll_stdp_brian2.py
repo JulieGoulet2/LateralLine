@@ -423,22 +423,31 @@ def make_test_rates_held_snapshots(params: NetworkParams):
 # ---------------------------------------------------------
 # Map metric + stabilization metric
 # ---------------------------------------------------------
+# The map-quality metric works in a CIRCULAR coordinate: the linear body axis (0..L cm)
+# is mapped onto an angle theta in [0, 2*pi) (see the population-vector decode below),
+# so decoding error is an angular error and must be summarised with directional
+# (circular) statistics rather than ordinary mean/std.
 def _wrap_to_pi(x: np.ndarray) -> np.ndarray:
+    """Wrap angles to (-pi, pi] so error differences don't jump at the 0/2pi seam."""
     return (x + np.pi) % (2.0 * np.pi) - np.pi
 
 
 def _circ_mean(x: np.ndarray) -> float:
+    """Circular mean = angle of the summed unit vectors (atan2 of mean sin, mean cos)."""
     if x.size == 0:
         return np.nan
     return float(np.arctan2(np.mean(np.sin(x)), np.mean(np.cos(x))))
 
 
 def _circ_std(x: np.ndarray) -> float:
+    """Mardia circular standard deviation sqrt(-2 ln R), where R is the mean resultant
+    length (R=1 -> perfectly concentrated -> std 0; R->0 -> uniform -> std -> inf).
+    This is the `sigma_theta` map-error reported throughout RESULTS.md."""
     if x.size == 0:
         return np.nan
     c = np.mean(np.cos(x))
     s = np.mean(np.sin(x))
-    r = np.sqrt(c * c + s * s)
+    r = np.sqrt(c * c + s * s)          # mean resultant length R in [0, 1]
     r = float(np.clip(r, 1e-12, 1.0))
     return float(np.sqrt(-2.0 * np.log(r)))
 
@@ -561,13 +570,19 @@ def pv_map_quality_from_ts_spikes(
         kernel = np.ones(smooth_win, dtype=float) / float(smooth_win)
         rates = np.apply_along_axis(lambda v: np.convolve(v, kernel, mode="same"), 0, rates)
 
-    # Preferred directions for TS neurons on [0, 2pi).
+    # --- Population-vector (PV) decode of stimulus position ---
+    # Assign TS neuron k a "preferred direction" phi_k = 2*pi*k/n_ts, i.e. lay the
+    # 300 TS cells evenly around a ring. (We use a ring, not a line, purely as a decode
+    # convenience: it lets us read out position as the angle of a population vector and
+    # summarise error with circular statistics; it does NOT imply the fish body is a ring.)
     phi = 2.0 * np.pi * np.arange(n_ts, dtype=float) / float(n_ts)
     ejphi = np.exp(1j * phi)
     denom = np.sum(rates, axis=1)
     z = np.zeros(n_t, dtype=np.complex128)
     nz = denom > 1e-12
     if np.any(nz):
+        # Population vector: rate-weighted sum of unit vectors, normalised. Its angle is
+        # the decoded position theta_hat; positions with no spikes are left undecoded.
         z[nz] = (rates[nz] @ ejphi) / denom[nz]
 
     theta_hat = np.zeros(n_t, dtype=float)
@@ -680,6 +695,26 @@ def _load_mid_checkpoint(run_dir):
 # Single-training pipeline (no temporal phase split)
 # ---------------------------------------------------------
 def run_spatial_two_stage_model(params: NetworkParams, checkpoint_path=None, resume_checkpoint=None):
+    """Build, train, and test the full LL -> MON -> TS network for one seed.
+
+    This is the master pipeline. Phases, in order:
+      1. Build the stimulus streams (training snapshots + continuous test sweep).
+      2. Build the Brian2 network: Poisson LL input, LIF MON and TS layers, LL->MON
+         and MON->TS synapses (with STDP), global + lateral inhibition, background.
+      3. Train: run the STDP-plastic network over n_training_trials, checkpointing
+         weights every checkpoint_trials.
+      4. Freeze plasticity and run the continuous test sweep.
+      5. Compute the population-vector (PV) map-quality metrics (sigma_theta, etc.)
+         and save figures + a result dict.
+
+    checkpoint_path : where to write mid_checkpoint.npz during training (crash safety).
+    resume_checkpoint : optional dict of restored weights. EXTRACT MODE = a checkpoint
+        whose trial_idx already equals n_training_trials-1, i.e. training is complete;
+        the training stimulus is then skipped entirely and only the test phase runs
+        (this is how run_distance_sweep_extract.sh / run_stimvar_extract.sh re-test
+        trained weights under new stimuli without retraining).
+    Returns a `result` dict consumed by the plotting helpers and the summary JSON.
+    """
     # Decide up front whether ANY training trials remain. Extract-mode runs
     # have resume_checkpoint["trial_idx"] == n_training_trials - 1 (all
     # trials already done), and previously we still allocated the full
@@ -813,25 +848,37 @@ def run_spatial_two_stage_model(params: NetworkParams, checkpoint_path=None, res
         s_ll_mon = b2.Synapses(
             ll,
             mon,
+            # Pair-based STDP with two exponential eligibility traces:
+            #   apre  jumps by Apre  on each PREsynaptic spike, decays with taupre;
+            #   apost jumps by Apost on each POSTsynaptic spike, decays with taupost.
+            # taupre = taupost = 20 ms sets the +/-20 ms coincidence window over which
+            # pre-before-post (potentiation) and post-before-pre (depression) are counted.
             model="""
             w : volt
             dapre/dt = -apre/taupre : 1 (event-driven)
             dapost/dt = -apost/taupost : 1 (event-driven)
             """,
+            # On a PREsynaptic spike: deliver the EPSP (ge_post += w), then depress by the
+            # amount of recent POST activity (apost). MULTIPLICATIVE (w + apost*w): the
+            # depression scales with w, a soft lower bound. Apost < 0, so this is LTD.
             on_pre="""
             ge_post += w
             apre += Apre
             w = clip(w + apost*w, 0*mV, wmax)
             """,
+            # On a POSTsynaptic spike: potentiate by recent PRE activity (apre), scaled by
+            # the room left to wmax (w + apre*(wmax-w)) — soft upper bound. This
+            # multiplicative rule is REQUIRED here; additive STDP saturates all weights and
+            # makes every MON fire everywhere (see CLAUDE.md / project_stdp_rules memory).
             on_post="""
             apost += Apost
             w = clip(w + apre*(wmax - w), 0*mV, wmax)
             """,
             namespace={
-                "taupre": 20 * b2.ms,
-                "taupost": 20 * b2.ms,
-                "Apre": params.ll_mon_apre,
-                "Apost": params.ll_mon_apost,
+                "taupre": 20 * b2.ms,   # STDP potentiation-window time constant
+                "taupost": 20 * b2.ms,  # STDP depression-window time constant
+                "Apre": params.ll_mon_apre,    # LTP step on the pre-trace (>0)
+                "Apost": params.ll_mon_apost,  # LTD step on the post-trace (<0)
                 "wmax": params.ll_mon_wmax_mV * b2.mV,
             },
         )

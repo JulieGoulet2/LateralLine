@@ -40,19 +40,38 @@ def hydrodynamic_velocity_parallel(
     sy: float = 0.0,
 ) -> np.ndarray:
     """
-    Compute v_parallel at each neuromast.
-    eX,eY: stimulus direction unit vector.
-    sx,sy: neuromast sensitivity axis unit vector.
+    Velocity component a neuromast senses from a small sphere moving in still water.
+
+    Physics: a sphere of radius R moving at speed U through an ideal fluid is, in the
+    far field, a potential-flow DIPOLE with velocity potential
+        phi = (R^3 / 2) * (U . rho) / |rho|^3,
+    where rho is the vector from the sphere to the sensor. The fluid velocity is
+    grad(phi); a superficial neuromast responds to the flow component along its own
+    sensitivity axis (sx, sy). This bipolar 1/r^3 near-field pattern is why distant
+    source positions can drive the same sensor (the "vertical bands" — see RESULTS.md
+    §1 and plots/tuning_multimodality.py) and why signal falls off steeply with
+    distance (the near-field band in RESULTS.md §3).
+
+    Args (cm and cm/s):
+      xi_cm, yi_cm : neuromast positions on the body axis (y = 0 for superficial cells).
+      X_cm, Y_cm   : sphere position; Y_cm is the perpendicular source distance D.
+      U_cm_s       : sphere speed.  R_cm: sphere radius (dipole strength scales as R^3).
+      eX, eY       : sphere travel-direction unit vector (sign flips the dipole lobes).
+      sx, sy       : neuromast sensitivity-axis unit vector (default = along-body x).
+    Returns: sensed velocity (cm/s) at each neuromast, same length as xi_cm.
     """
+    # rho = sensor - source; rho2 = |rho|^2, floored to avoid div-by-zero at contact.
     dx = xi_cm - X_cm
     dy = yi_cm - Y_cm
     rho2 = dx * dx + dy * dy
     rho2 = np.maximum(rho2, 1e-9)
-    denom = np.power(rho2, 2.5)
+    denom = np.power(rho2, 2.5)  # |rho|^5: each potential derivative carries a 1/|rho|^5 factor
 
+    # Analytic gradient of the dipole potential phi (R^3 = strength, U = amplitude).
     common = -0.5 * U_cm_s * (R_cm**3) / denom
-    dphi_dxi = common * ((2.0 * dx * dx - dy * dy) * eX + 3.0 * dx * dy * eY)
-    dphi_dyi = common * (3.0 * dx * dy * eX - (dx * dx - 2.0 * dy * dy) * eY)
+    dphi_dxi = common * ((2.0 * dx * dx - dy * dy) * eX + 3.0 * dx * dy * eY)  # d(phi)/dx
+    dphi_dyi = common * (3.0 * dx * dy * eX - (dx * dx - 2.0 * dy * dy) * eY)  # d(phi)/dy
+    # Project the flow vector onto the neuromast sensitivity axis.
     return dphi_dxi * sx + dphi_dyi * sy
 
 
@@ -98,23 +117,27 @@ def simulate_lateral_line(
     X = X0 + U * eX * t
     Y = np.full_like(t, D)
 
-    # Spatial correlation matrix R_ij and its Cholesky factor.
+    # Spatially-correlated noise: neighbouring neuromasts share slow rate fluctuations.
+    # R_ij is a squared-exponential kernel (correlation length l_noise_cm); its Cholesky
+    # factor L turns white Gaussian samples z into correlated ones via L @ z.
     dist = xi[:, None] - xi[None, :]
     R = np.exp(-0.5 * (dist / params.l_noise_cm) ** 2)
-    L = np.linalg.cholesky(R + 1e-12 * np.eye(n_neuromasts))
+    L = np.linalg.cholesky(R + 1e-12 * np.eye(n_neuromasts))  # +1e-12 I keeps it positive-definite
 
-    # Correlated OU noise process eta_i(t).
+    # eta_i(t): Ornstein-Uhlenbeck (mean-reverting) noise, one per neuromast.
+    # noise_gain is the OU diffusion constant sqrt(2*sigma^2*dt/tau) so that eta has
+    # stationary std = sigma_noise_hz and autocorrelation time tau_noise_s.
     eta = np.zeros(n_neuromasts)
     eta_t = np.zeros((n_t, n_neuromasts))
     noise_gain = np.sqrt(2.0 * (params.sigma_noise_hz**2) * dt_s / params.tau_noise_s)
 
-    # Output rates.
     v_drive = np.zeros((n_t, n_neuromasts))
     rates = np.zeros((n_t, n_neuromasts))
 
     for k in range(n_t):
         z = rng.standard_normal(n_neuromasts)
-        xi_corr = L @ z
+        xi_corr = L @ z                       # spatially-correlated white innovation
+        # Euler-Maruyama step of the OU SDE:  d(eta) = -eta/tau dt + noise_gain dW.
         eta += dt_s * (-eta / params.tau_noise_s) + noise_gain * xi_corr
         eta_t[k] = eta
 
@@ -122,6 +145,8 @@ def simulate_lateral_line(
             xi, yi, X[k], Y[k], U, params.sphere_radius_cm, eX=eX, eY=eY, sx=1.0, sy=0.0
         )
         v_drive[k] = v
+        # Firing-rate transfer function: baseline r0 + gain A * velocity + noise,
+        # rectified to [0, rmax]. A_per_cm converts cm/s of flow into Hz.
         rates[k] = np.clip(params.r0_hz + params.A_per_cm * v + eta, 0.0, params.rmax_hz)
 
     return {
