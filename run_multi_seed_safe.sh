@@ -95,7 +95,9 @@ for ((k=0; k<MULTI_SEED; k++)); do
   echo "--- $(date) Seed ${SEED} starting ---" | tee -a "$SUMMARY_LOG"
   touch "$SEED_LOG"
 
-  PYTHON="${PYTHON:-$(command -v python || command -v python3 || echo /Users/juliegoulet/anaconda3/bin/python)}"
+  # Default to the anaconda base env (has Brian2). The old command-v fallback could
+  # pick /usr/bin/python3 (no Brian2) in a bare shell; override with LL_PYTHON/PYTHON.
+  PYTHON="${LL_PYTHON:-${PYTHON:-/Users/juliegoulet/anaconda3/bin/python}}"
   if env PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 "$PYTHON" -u ll_stdp_brian2.py \
       "${PASS_ARGS[@]}" --seed-start "$SEED" --multi-seed 1 \
       >> "$SEED_LOG" 2>&1; then

@@ -1,4 +1,4 @@
-# LateralLine STDP — Results Summary (2026-05-15)
+# LateralLine STDP — Results Summary (2026-05-15; open questions updated through 2026-07-08)
 
 ## The scientific question
 
@@ -44,7 +44,7 @@ The fraction that follows topography is set by the parameters `ll_mon_topo` and 
 
 A small sphere ("dipole") moves past the lateral line at fixed speed (5 cm/s) at lateral distance `d`. The hydrodynamic velocity field at each LL position is computed analytically (`stimulus.hydrodynamic_velocity_parallel`). Each LL neuromast fires an inhomogeneous Poisson spike train with rate `r_0 + A · v(x_i, x_source, d) + spatial-correlated noise`, clipped to `[0, r_max]`.
 
-For all experiments in the topo gradient below, the training distance is **fixed at `d = 0.8 cm`** (`--training-distance-min-cm 0.8 --training-distance-max-cm 0.8`). A multi-distance pilot (d ∈ [0.6, 1.2] cm) was completed on 2026-05-09 — see "Multi-distance pilot" section below.
+For all experiments in the topo gradient below, the training distance is **fixed at `d = 0.8 cm`** (`--training-distance-min-cm 0.8 --training-distance-max-cm 0.8`). A multi-distance pilot (d ∈ [0.6, 1.2] cm) was completed on 2026-05-09 — see the "Completed experiment — multi-distance training pilot" section below.
 
 ### Training protocol
 
@@ -260,7 +260,7 @@ The four curves separate cleanly by topo level only at small D (≤ 1 cm); at la
 
 **Q.** Is the U-shape minimum at D = 0.8 cm an artifact of the training protocol (we trained only at that distance), or is it intrinsic to the stimulus geometry?
 
-**Result.** Identical U-shape in both training protocols. Training on a uniform mixture d ∈ [0.6, 1.2] cm produces a minimum at D = 0.6 cm with **σ_θ = 0.400 rad**, a single-D fit at D = 0.8 gives **σ_θ = 0.303 rad** — the multi-D curve is slightly broader (σ_θ ≈ 0.40 over a 0.6–1.0 cm range, vs single-D's sharp peak at 0.80 cm) but the minimum is **in the same neighbourhood** of distances regardless of training. Outside the training range (D ≥ 1.5 cm) both curves are statistically indistinguishable.
+**Result.** Identical U-shape in both training protocols. Training on a uniform mixture d ∈ [0.6, 1.2] cm produces a minimum at D = 0.6 cm (**σ_θ = 0.400 rad**); single-distance training gives **σ_θ = 0.303 rad** at D = 0.8 cm — the multi-D curve is slightly broader (σ_θ ≈ 0.40 over a 0.6–1.0 cm range, vs single-D's sharp peak at 0.80 cm) but the minimum is **in the same neighbourhood** of distances regardless of training. Outside the training range (D ≥ 1.5 cm) both curves are statistically indistinguishable.
 
 **Interpretation.** The U-shape minimum is driven by **stimulus geometry**: the dipole hydrodynamic field at D ≈ 0.6–0.8 cm provides the steepest spatial gradient across the lateral-line array — the signal is most informative there. Training distance modulates how much the network *exploits* that geometry, but does not move the optimal distance.
 
@@ -268,7 +268,7 @@ The four curves separate cleanly by topo level only at small D (≤ 1 cm); at la
 
 **Figure 5.1a'** (`Picture/ch5_fig51a_singleD_vs_multiD.png`). Single-distance training (blue, fixed D = 0.8 cm) vs multi-distance training (orange, D ∈ [0.6, 1.2] cm uniform per trial). Mean ± SD across 3 seeds. Shaded vertical band marks the multi-D training range; dashed line marks the single-D training point. Both protocols use topo = 0.20 and 10 000 trials.
 
-### MON neuron count — Figs 5.1b, 5.1b′, 5.3
+### MON neuron count — Figs 5.1b, 5.1b', 5.3
 
 **Q.** How does the number of MON neurons N affect map quality? Does the recipe transfer when the population size shrinks?
 
@@ -324,7 +324,9 @@ The four curves separate cleanly by topo level only at small D (≤ 1 cm); at la
 | Iris Hydi figure | Our equivalent | Result reproduced? |
 |---|---|---|
 | Fig 5.1 (σ_θ vs D, topo levels) | Fig 5.1a | ✅ U-shape with minimum at training D, falls to chance beyond ~1 body-length |
-| (no equivalent in IH) | Fig 5.1a' (single-D vs multi-D) | ✅ U-shape is geometric, not training-distance overfitting |
+| (no equivalent in Iris Hydi) | Fig 5.1a' (single-D vs multi-D) | ✅ U-shape is geometric, not training-distance overfitting |
+| Fig 5.3 (σ_θ vs MON size), per-distance | Fig 5.1b (σ_θ vs D, four N) | ✅ U-shape family separates cleanly by N (scaled gain) |
+| (methodological) | Fig 5.1b' (unscaled vs scaled gain) | ✅ Gain-scaling is necessary before comparing across N |
 | Fig 5.2 (σ_θ vs D, obs period T) | — | Not yet (requires per-window analysis) |
 | Fig 5.3 (σ_θ vs MON size) | Fig 5.3 | ✅ Monotonic, with explicit gain-scaling step |
 | Fig 5.4 (sharpening σ_LL/σ_TS) | Fig 5.4 | ✅ Population sharpening peaks at training D |
@@ -431,13 +433,13 @@ The fix had to attack the MON layer first (heterogeneous init + homeostasis), th
 
 ---
 
-## Open questions
+## Open questions and follow-up analyses
 
 ### 1. Per-individual-TS-cell tuning is multimodal — the "vertical bands"
 
 In every single network, individual TS cells fire at **2–3 distinct x positions**, not at a single x. This is visible as vertical bands in `brian2_ts_spikes_vs_x_test_*.png`. The bands shift to different x positions in different seeds, so **population-vector decoding (averaged across the 300 TS cells) still works** — but per-cell tuning curves are not unimodal.
 
-**Tested hypothesis — multi-distance training (2026-05-09, NEGATIVE result):** the original hypothesis was that training at a single distance imprints the dipole side-lobe geometry as spurious ghost correlations, which multi-distance training would average out. A 3-seed pilot at topo = 0.20, d ∈ [0.6, 1.2] cm uniform per trial, 10 000 trials each was run. The vertical bands remained equally present and map quality was slightly worse (σ_θ = 0.601 ± 0.101 vs 0.354 ± 0.058 extract-mode baseline). **The hypothesis was rejected.** The bands are not a distance-sampling artifact.
+**Tested hypothesis — multi-distance training (2026-05-09, NEGATIVE result):** the original hypothesis was that training at a single distance imprints the dipole side-lobe geometry as spurious ghost correlations, which multi-distance training would average out. A 3-seed pilot at topo = 0.20, d ∈ [0.6, 1.2] cm uniform per trial, 10 000 trials each was run. The vertical bands remained equally present and map quality was slightly worse (σ_θ = 0.601 ± 0.101 **training-mode** vs the 0.354 ± 0.058 **extract-mode** single-distance baseline — note these are two different evaluation modes; the like-for-like extract-mode comparison at D = 0.8 cm is in the Fig 5.1a' section). **The hypothesis was rejected.** The bands are not a distance-sampling artifact.
 
 **Revised interpretation:** the multimodal per-TS-cell tuning is an **intrinsic property of the lateral line geometry** — certain x positions produce similar LL activation patterns regardless of source distance, and STDP reinforces these invariant co-firings. This is consistent with the experimental literature, where single-unit recordings in teleost fish lateral line show messy or multimodal tuning and a clean somatotopic map is hard to see at single-unit resolution. The model thus predicts that the map is a **population-level phenomenon** requiring multi-electrode population decoding to observe — a testable prediction. This is accepted as a known model property, not a bug.
 
@@ -449,9 +451,9 @@ In every single network, individual TS cells fire at **2–3 distinct x position
 
 The 10 % single-seed failure rate at topo = 0.10 (1 / 10 seeds) means the recipe is no longer robust at this level. Lower topo (e.g. 0.05) is unlikely to work without an additional mechanism (bigger jitter, higher in-degree, or multi-distance training). We have not pushed below 0.10.
 
-### 3. Single training distance — generalisation untested
+### 3. Single training distance — distance generalisation
 
-All current results train and test at exactly `d = 0.8 cm`. We do not know yet whether the resulting map generalises to other distances, or how much the recipe depends on the specific dipole-field geometry at this one distance.
+All topo-gradient results train and test at exactly `d = 0.8 cm`. The original open question was whether the resulting map generalises to other distances, and how much the recipe depends on the specific dipole-field geometry at this one distance. The Step-3 analysis below answers it.
 
 **Step 3 analysis (2026-07-08) — the map generalises within a near-field band, widened by multi-distance training.** Extract-mode distance sweeps (test D = 0.2–3.0 cm) on the single-distance-trained networks (topo = 0.20, 6 seeds 127–132, trained at D = 0.8 cm) and the multi-distance pilot (3 seeds 123–125, D ∈ [0.6, 1.2] cm); `run_distance_sweep_extract.sh`, `plots/distance_generalization.py`. The single-D map is U-shaped in test distance: sharpest at the trained D = 0.8 (σ_θ = 0.31 rad), usable across a near-field band ~0.4–1.2 cm, degrading toward chance (π/2) beyond ~1.5 cm (σ_θ = 1.68 at D = 2.0). Multi-distance training flattens and broadens the band — a slightly worse best-case (σ_θ = 0.41 at D = 0.8) but markedly better far-field generalisation (σ_θ = 1.31 vs 1.68 at D = 2.0): a generalisation-vs-specialisation tradeoff. Both protocols fail at D > 2 cm because the dipole field falls as 1/r³, so distant sources give weak, broad, low-SNR input — the same signal-to-noise limit seen in the Step-2 size/speed sweep. **Q3 answer:** the map generalises across distance, but only within a near-field band whose width is set by the training-distance distribution.
 
@@ -459,7 +461,7 @@ All current results train and test at exactly `d = 0.8 cm`. We do not know yet w
 
 ### 4. Limited range of test stimuli
 
-Test sweeps use a single x range, single distance, single source size, single speed. Cross-stimulus generalisation has not been measured.
+Test sweeps use a single x range, single distance, single source size, single speed. Cross-stimulus generalisation was originally unmeasured; the Step-2 analysis below addresses it.
 
 **Step 2 analysis (2026-07-08) — the map is robust to stimulus strength and is direction-specific.** Extract-mode test sweeps on the 6 topo = 0.20 networks (127–132), varying one test property at a time (no retraining; `run_stimvar_extract.sh`, `plots/stimvar_summary.py`). **Size / speed (signal strength):** a stronger stimulus (sphere r = 0.7 cm, or 10 cm/s) preserves or slightly sharpens the map (σ_θ = 0.26 / 0.27 rad vs 0.33 baseline; valid ≈ 0.91), while a weaker stimulus (r = 0.3 cm, or 2.5 cm/s) degrades it (σ_θ = 1.27 / 0.65 rad; valid = 0.66 / 0.77). The degradation is a **signal-to-noise effect** — the LIF thresholds and homeostasis are calibrated to the training drive level, so a weaker input under-drives the network. The map is therefore robust to stimulus strength at or above the trained level and degrades gracefully below it. **Direction:** reversing the sweep (backward) drives the population just as reliably (valid = 0.89) but makes the decoded position *systematically wrong* (σ_θ = 1.00 rad, 3× baseline). The learned readout is **direction-specific**: a decoder calibrated on forward motion mis-maps backward motion. This is the population-level signature of the **front/back geometric ambiguity** predicted by the Step-1 analysis (a bipolar dipole makes forward-at-x resemble backward-at-x+2 cm). Together these broaden the map claim: the somatotopic code generalises across object size and speed (within an SNR-limited band) but is tied to the trained motion direction — a concrete, testable model prediction. A new backwards-compatible `--sphere-radius-cm` CLI flag (default 0.5) was added to vary object size.
 
@@ -469,7 +471,7 @@ Test sweeps use a single x range, single distance, single source size, single sp
 
 ## Status of the codebase / dataset
 
-- All 28 (10 + 10 + 8) extract-mode evaluations are saved as JSON in the corresponding `Runs/extract_topo*_seed_NNN/artifacts/seed_NNN_results.json`.
+- All 30 (10 + 10 + 10) extract-mode evaluations are saved as JSON in the corresponding `Runs/extract_topo*_seed_NNN/artifacts/seed_NNN_results.json` (topo = 0.10 was completed to 10 seeds on 2026-05-17).
 - The training runs themselves are in `Runs/llmon_topo020_seeds127_132/`, `Runs/llmon_topo015_seeds127_132/`, `Runs/llmon_topo010_seeds126_132/`, plus the original Y2/U/X seeds in `Runs/llmon_U_*` and `Runs/llmon_Y2_*`.
 - Topo gradient training runs (2026-05-10 to 2026-05-13): `Runs/llmon_topo040_seeds123_132/`, `Runs/llmon_topo060_seeds123_132/`, `Runs/llmon_topo080_seeds123_132/`. Per-seed results JSON in each `artifacts/` subdirectory.
 - Multi-seed orchestration: `run_multi_seed_safe.sh` (training, OOM-safe), `run_extract_evaluation.sh` and `run_extract_topo010.sh` (extract-mode batch).
@@ -497,7 +499,7 @@ Test sweeps use a single x range, single distance, single source size, single sp
 
 ---
 
-## Status
+## Overall status
 
 ✅ **Topo gradient complete (2026-05-13; topo=0.10 completed to 10 seeds on 2026-05-17).** All 6 topo levels (0.10, 0.15, 0.20, 0.40, 0.60, 0.80) complete with 10 seeds each. Figure in `Picture/topo_gradient_summary.png`; plot code in `plots/topo_gradient_summary.py`.
 

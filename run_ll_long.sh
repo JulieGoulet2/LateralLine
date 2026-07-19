@@ -16,6 +16,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
 
+# Python interpreter: default to the anaconda base env (has Brian2 + matplotlib +
+# NumPy 2.x). Bare `python` is NOT reliable — it only resolves when conda base is
+# active on PATH, and a bare shell falls back to /usr/bin/python3 (no Brian2).
+# Override with LL_PYTHON=/path/to/python if you migrate envs (e.g. Miniforge).
+PYTHON="${LL_PYTHON:-/Users/juliegoulet/anaconda3/bin/python}"
+
 mkdir -p Logs
 LOG="${LL_RUN_LOG:-Logs/run_long_$(date +%Y%m%d_%H%M%S).log}"
 touch "$LOG"
@@ -53,7 +59,7 @@ RESUME_SCRIPT="${LOG%.log}_RESUME.sh"
 chmod +x "$RESUME_SCRIPT"
 echo "Resume script: $ROOT/$RESUME_SCRIPT"
 
-nohup env PYTHONUNBUFFERED=1 caffeinate -dis python -u ll_stdp_brian2.py "$@" >>"$LOG" 2>&1 &
+nohup env PYTHONUNBUFFERED=1 caffeinate -dis "$PYTHON" -u ll_stdp_brian2.py "$@" >>"$LOG" 2>&1 &
 PID=$!
 
 # Watcher: waits for the simulation to finish, then sends a macOS notification.

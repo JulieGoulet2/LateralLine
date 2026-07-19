@@ -30,6 +30,10 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
 mkdir -p Logs
 
+# Python interpreter: default to the anaconda base env (has Brian2). Bare `python`
+# only works when conda base is on PATH; override with LL_PYTHON if you migrate envs.
+PYTHON="${LL_PYTHON:-/Users/juliegoulet/anaconda3/bin/python}"
+
 # Self-relaunch into background with nohup + caffeinate.
 if [[ "${1:-}" != "--_bg" ]]; then
   _ARGS=("$@")
@@ -109,7 +113,7 @@ for SEED in "${SEEDS[@]}"; do
   EXTRACT_RUN="stimvar_${LABEL}_seed${SEED}_extract"
   SEED_LOG="Logs/${EXTRACT_RUN}.log"; touch "$SEED_LOG"
   echo "--- $(date) Creating extract checkpoint for seed ${SEED} ---" | tee -a "$LOG"
-  python make_extract_checkpoint.py "$SEED" "$SRC_RUN" "$EXTRACT_RUN" >> "$SEED_LOG" 2>&1
+  "$PYTHON" make_extract_checkpoint.py "$SEED" "$SRC_RUN" "$EXTRACT_RUN" >> "$SEED_LOG" 2>&1
 
   for COND in "${CONDITIONS[@]}"; do
     CLABEL="${COND%%|*}"
@@ -128,14 +132,14 @@ for SEED in "${SEEDS[@]}"; do
     touch "$COND_LOG"
     echo "--- $(date) seed ${SEED} ${CLABEL} [${CFLAGS_STR}] starting ---" | tee -a "$LOG"
 
-    if env PYTHONUNBUFFERED=1 python -u ll_stdp_brian2.py \
+    if env PYTHONUNBUFFERED=1 "$PYTHON" -u ll_stdp_brian2.py \
         "${BASE_ARGS[@]}" ${CFLAGS[@]+"${CFLAGS[@]}"} \
         --test-ll-noise-hz "$NOISE_HZ" \
         --run-name "$RUN_NAME" \
         --seed-start "$SEED" --multi-seed 1 \
         --resume-from "Runs/${RUN_NAME}/" \
         >> "$COND_LOG" 2>&1; then
-      RESULT=$(python3 -c "
+      RESULT=$("$PYTHON" -c "
 import json
 try:
     d = json.load(open('${RESULT_DIR}/seed_${SEED}_results.json'))

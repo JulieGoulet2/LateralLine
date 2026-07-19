@@ -24,6 +24,10 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
 mkdir -p Logs
 
+# Python interpreter: default to the anaconda base env (has Brian2). Bare `python`
+# only works when conda base is on PATH; override with LL_PYTHON if you migrate envs.
+PYTHON="${LL_PYTHON:-/Users/juliegoulet/anaconda3/bin/python}"
+
 # ------------------------------------------------------------------
 # Self-relaunch into background with nohup + caffeinate.
 # ------------------------------------------------------------------
@@ -119,11 +123,11 @@ for SEED in "${SEEDS[@]}"; do
   touch "$SEED_LOG"
 
   echo "--- $(date) Creating extract checkpoint for seed ${SEED} ---" | tee -a "$LOG"
-  python make_extract_checkpoint.py "$SEED" "$SRC_RUN" "$EXTRACT_RUN" >> "$SEED_LOG" 2>&1
+  "$PYTHON" make_extract_checkpoint.py "$SEED" "$SRC_RUN" "$EXTRACT_RUN" >> "$SEED_LOG" 2>&1
 
   for D in "${DISTANCES[@]}"; do
     # Format distance as integer hundredths for filenames: 0.2 -> d020, 1.5 -> d150
-    D_STR=$(python3 -c "print(f'd{round(float(\"$D\")*100):03d}')")
+    D_STR=$("$PYTHON" -c "print(f'd{round(float(\"$D\")*100):03d}')")
     RUN_NAME="distswp_${LABEL}_seed${SEED}_${D_STR}"
     DIST_LOG="Logs/${RUN_NAME}.log"
     RESULT_DIR="Runs/${RUN_NAME}/artifacts"
@@ -141,7 +145,7 @@ for SEED in "${SEEDS[@]}"; do
     touch "$DIST_LOG"
     echo "--- $(date) seed ${SEED} D=${D} cm starting ---" | tee -a "$LOG"
 
-    if env PYTHONUNBUFFERED=1 python -u ll_stdp_brian2.py \
+    if env PYTHONUNBUFFERED=1 "$PYTHON" -u ll_stdp_brian2.py \
         "${BASE_ARGS[@]}" \
         --distance-cm "$D" \
         --test-ll-noise-hz "$NOISE_HZ" \
@@ -150,7 +154,7 @@ for SEED in "${SEEDS[@]}"; do
         --resume-from "Runs/${RUN_NAME}/" \
         >> "$DIST_LOG" 2>&1; then
       # Extract key metrics from result JSON.
-      RESULT=$(python3 -c "
+      RESULT=$("$PYTHON" -c "
 import json, sys
 try:
     d = json.load(open('${RESULT_DIR}/seed_${SEED}_results.json'))
